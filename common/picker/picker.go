@@ -28,13 +28,6 @@ func newPicker[T any](ctx context.Context, cancel func()) *Picker[T] {
 	}
 }
 
-// WithContext returns a new Picker and an associated Context derived from ctx.
-// and cancel when first element return.
-func WithContext[T any](ctx context.Context) (*Picker[T], context.Context) {
-	ctx, cancel := context.WithCancel(ctx)
-	return newPicker[T](ctx, cancel), ctx
-}
-
 // WithTimeout returns a new Picker and an associated Context derived from ctx with timeout.
 func WithTimeout[T any](ctx context.Context, timeout time.Duration) (*Picker[T], context.Context) {
 	ctx, cancel := context.WithTimeout(ctx, timeout)

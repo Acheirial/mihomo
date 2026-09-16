@@ -64,7 +64,7 @@ REST PUT /configs / SIGHUP ─────────────────�
 | `hub/` | `hub.go`（Parse/ApplyConfig），`executor/`（应用引擎），`route/`（REST API） |
 | `constant/` | 接口、枚举、`Metadata`、路径默认值、build-tag 特性开关 |
 | `component/` | resolver、sniffer、trie、fakeip、profile、dialer 等 |
-| `common/` | 自研工具库：`atomic`、`xsync.Map`、`singleflight`、`batch`、`queue`、`pool`、`structure`（解码器） |
+| `common/` | 自研工具库：`atomic`、`xsync.Map`、`singleflight`、`queue`、`pool`、`structure`（解码器） |
 | `test/` | 独立 Go module——基于 Docker 的协议集成测试 |
 
 ## 开发命令
@@ -104,9 +104,9 @@ npx tsx .agents/skills/write-notes-like-deepseek/scripts/archive-agent-note.ts <
 - **格式化/lint**（`.golangci.yaml`，根目录与 `test/` 相同）：`disable-all` + gofumpt、govet、gci、staticcheck。
 - **配置解码**：option 结构体用 `proxy:"name"` 标签，由 `common/structure` 解码（mapstructure 魔改版，`WeaklyTypedInput`）；构造函数 `NewX(option XOption) (*X, error)`。
 - **错误处理**：带位置上下文地包装——`fmt.Errorf("proxy %d: ...: %w", i, err)`；哨兵错误（`resolver.ErrIPNotFound`、`C.ErrNotSupport`）；日志用 `log.Infoln/Warnln/Errorln/Debugln/Fatalln`（printf 风格，无结构化日志）。
-- **并发**：TCP 每连接一个 goroutine；UDP 用固定分片 worker 池；`common/atomic`、`common/xsync.Map`、`common/singleflight`、`common/batch.Batch[T]`（带并发上限的 errgroup）；`sync.Once` 懒初始化；全局状态由 `configMux` 风格的 mutex 保护。
+- **并发**：TCP 每连接一个 goroutine；UDP 用固定分片 worker 池；`common/atomic`、`common/xsync.Map`、`common/singleflight`；`sync.Once` 懒初始化；全局状态由 `configMux` 风格的 mutex 保护。
 - **metadata 补充**：入站 `Addition` 函数式选项（`adapter/inbound/addition.go`：`WithInName`、`WithSpecialRules` 等）。
-- `docs/config.yaml` 的注释以中文为主、中英混排——改配置文档时保持该风格。
+- `docs/docs/config/`（mkdocs 配置参考）的注释以中文为主、中英混排——改配置文档时保持该风格。
 
 ### 新增代理类型（示例参照：`anytls`）
 
@@ -122,7 +122,7 @@ npx tsx .agents/skills/write-notes-like-deepseek/scripts/archive-agent-note.ts <
 ## 重要文件
 
 - `main.go`——入口、flag、信号、子命令
-- `config/config.go`——配置解析/校验（另见 `docs/config.yaml` = 完整带注释配置参考；新增配置项时同步更新它）
+- `config/config.go`——配置解析/校验（另见 `docs/docs/config/` = mkdocs 完整带注释配置参考；新增配置项时同步更新它）
 - `hub/executor/executor.go`——`ApplyConfig`，热重载引擎
 - `tunnel/tunnel.go`——TCP/UDP 管线 + `match()`
 - `constant/adapters.go`、`constant/metadata.go`、`constant/rule.go`——核心接口

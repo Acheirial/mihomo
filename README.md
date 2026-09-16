@@ -36,7 +36,7 @@ A web dashboard with first-class support for this project has been created; it c
 
 ## Configration example
 
-Configuration example is located at [/docs/config.yaml](https://github.com/MetaCubeX/mihomo/blob/Alpha/docs/config.yaml).
+Configuration example is located at [docs/](https://github.com/MetaCubeX/mihomo/tree/Alpha/docs).
 
 ## Docs
 

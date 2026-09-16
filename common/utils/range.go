@@ -31,14 +31,6 @@ func (r Range[T]) Contains(t T) bool {
 	return t >= r.start && t <= r.end
 }
 
-func (r Range[T]) LeftContains(t T) bool {
-	return t >= r.start && t < r.end
-}
-
-func (r Range[T]) RightContains(t T) bool {
-	return t > r.start && t <= r.end
-}
-
 func (r Range[T]) Start() T {
 	return r.start
 }

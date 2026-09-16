@@ -3,7 +3,6 @@ package utils
 import (
 	"errors"
 	"fmt"
-	"sort"
 	"strings"
 
 	"golang.org/x/exp/constraints"
@@ -55,14 +54,6 @@ func NewUnsignedRangesFromList[T constraints.Unsigned](list []string) (IntRanges
 	return newIntRangesFromList(list, parseUnsigned[T])
 }
 
-func NewSignedRanges[T constraints.Signed](expected string) (IntRanges[T], error) {
-	return newIntRanges(expected, parseSigned[T])
-}
-
-func NewSignedRangesFromList[T constraints.Signed](list []string) (IntRanges[T], error) {
-	return newIntRangesFromList(list, parseSigned[T])
-}
-
 func (ranges IntRanges[T]) Check(status T) bool {
 	if len(ranges) == 0 {
 		return true
@@ -105,25 +96,4 @@ func (ranges IntRanges[T]) Range(f func(t T) bool) {
 			}
 		}
 	}
-}
-
-func (ranges IntRanges[T]) Merge() (mergedRanges IntRanges[T]) {
-	if len(ranges) == 0 {
-		return
-	}
-	sort.Slice(ranges, func(i, j int) bool {
-		return ranges[i].Start() < ranges[j].Start()
-	})
-	mergedRanges = ranges[:1]
-	var rangeIndex int
-	for _, r := range ranges[1:] {
-		if mergedRanges[rangeIndex].End()+1 > mergedRanges[rangeIndex].End() && // integer overflow
-			r.Start() > mergedRanges[rangeIndex].End()+1 {
-			mergedRanges = append(mergedRanges, r)
-			rangeIndex++
-		} else if r.End() > mergedRanges[rangeIndex].End() {
-			mergedRanges[rangeIndex].end = r.End()
-		}
-	}
-	return
 }

@@ -28,7 +28,7 @@
 
 </div>
 
-[example]: https://github.com/MetaCubeX/mihomo/blob/Meta/docs/config.yaml
+[example]: ../example/conf.md
 [inbound]: ./inbound/index.md
 [proxy-group]: ./proxy-groups/index.md
 [proxie]: ./proxies/index.md
