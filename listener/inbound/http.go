@@ -20,6 +20,7 @@ type HTTPOption struct {
 	ClientAuthCert string        `inbound:"client-auth-cert,omitempty"`
 	EchKey         string        `inbound:"ech-key,omitempty"`
 	RealityConfig  RealityConfig `inbound:"reality-config,omitempty"`
+	Mitm           Mitm          `inbound:"mitm,omitempty"`
 }
 
 func (o HTTPOption) Equal(config C.InboundConfig) bool {
@@ -72,6 +73,7 @@ func (h *HTTP) Listen(tunnel C.Tunnel) error {
 				ClientAuthCert: h.config.ClientAuthCert,
 				EchKey:         h.config.EchKey,
 				RealityConfig:  h.config.RealityConfig.Build(),
+				Mitm:           h.config.Mitm.Build(),
 			},
 			lc,
 			tunnel,

@@ -235,6 +235,20 @@ sniffer:
     - "443"
     # - 8000-9999
 
+  # MITM（TLS 中间人解密）拦截匹配的 TCP TLS 连接，读取 ClientHello SNI，
+  # 用 CA 为该域名动态签发证书完成握手并解密流量，之后按解密连接走正常
+  # 规则匹配/代理链，对上游重新加密；失败（非 TLS/无 SNI/握手失败）则原样放行
+  # 注意：客户端必须信任该 CA，证书 pinning 的应用会失败，仅用于自有设备/可信环境
+  # mitm:
+  #   enable: false # 默认 false
+  #   ca: ./mitm-ca.crt # CA 证书 PEM 路径或内联内容；留空则每次启动在内存中自动生成临时 CA
+  #   ca-key: ./mitm-ca.key # CA 私钥 PEM；与 ca 配对
+  #   skip-domain: # 不拦截的域名列表，支持通配符 +.example.com 风格，同 sniffer.skip-domain
+  #     - "+.example.com"
+  #   port-whitelist: # 仅拦截这些端口的 TLS 流量；留空默认仅 443
+  #     - 443
+  #     - 8443
+
 tunnels: # one line config
   - tcp/udp,127.0.0.1:6553,114.114.114.114:53,proxy
   - tcp,127.0.0.1:6666,rds.mysql.com:3306,vpn
@@ -2066,6 +2080,14 @@ listeners:
     #   madSJjYQIf9o1N5GXjkW4DEEeb17qMxHdwMdNnwADAABAAEAAQACAAEAAwAIdGVz
     #   dC5jb20AAA==
     #   -----END ECH KEYS-----
+    # 如果填写mitm则开启TLS中间人解密（对CONNECT请求按SNI签发叶子证书，解密后的流量参与规则匹配）
+    # mitm:
+    #   enable: true
+    #   hosts: # 仅拦截匹配的域名，留空则拦截所有
+    #     - example.com
+    #   ca-certificate: ./mitm-ca.pem # CA 证书 PEM 格式，或者 证书的路径；留空则自动生成
+    #   ca-private-key: ./mitm-ca-key.pem # CA 私钥 PEM 格式，或者 私钥路径；留空则自动生成
+    #   store-ca: false # 是否将自动生成的CA持久化到配置目录（mitm-ca.pem / mitm-ca-key.pem）
 
   - name: mixed-in-1
     type: mixed #  HTTP(S) 和 SOCKS 代理混合
@@ -2091,6 +2113,14 @@ listeners:
     #   madSJjYQIf9o1N5GXjkW4DEEeb17qMxHdwMdNnwADAABAAEAAQACAAEAAwAIdGVz
     #   dC5jb20AAA==
     #   -----END ECH KEYS-----
+    # 如果填写mitm则开启TLS中间人解密（对CONNECT请求按SNI签发叶子证书，解密后的流量参与规则匹配）
+    # mitm:
+    #   enable: true
+    #   hosts: # 仅拦截匹配的域名，留空则拦截所有
+    #     - example.com
+    #   ca-certificate: ./mitm-ca.pem # CA 证书 PEM 格式，或者 证书的路径；留空则自动生成
+    #   ca-private-key: ./mitm-ca-key.pem # CA 私钥 PEM 格式，或者 私钥路径；留空则自动生成
+    #   store-ca: false # 是否将自动生成的CA持久化到配置目录（mitm-ca.pem / mitm-ca-key.pem）
 
   - name: redir-in-1
     type: redir

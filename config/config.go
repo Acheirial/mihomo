@@ -23,6 +23,7 @@ import (
 	"github.com/metacubex/mihomo/component/cidr"
 	"github.com/metacubex/mihomo/component/fakeip"
 	"github.com/metacubex/mihomo/component/geodata"
+	"github.com/metacubex/mihomo/component/mitm"
 	"github.com/metacubex/mihomo/component/process"
 	"github.com/metacubex/mihomo/component/resolver"
 	"github.com/metacubex/mihomo/component/sniffer"
@@ -210,6 +211,7 @@ type Config struct {
 	RuleProviders map[string]P.RuleProvider
 	Tunnels       []LC.Tunnel
 	Sniffer       *sniffer.Config
+	MITM          *mitm.Config
 	TLS           *TLS
 }
 
@@ -381,8 +383,17 @@ type RawSniffer struct {
 	Ports           []string `yaml:"port-whitelist" json:"port-whitelist"`
 	ForceDnsMapping bool     `yaml:"force-dns-mapping" json:"force-dns-mapping"`
 	ParsePureIp     bool     `yaml:"parse-pure-ip" json:"parse-pure-ip"`
+	MITM            *RawMITM `yaml:"mitm" json:"mitm"`
 
 	Sniff map[string]RawSniffingConfig `yaml:"sniff" json:"sniff"`
+}
+
+type RawMITM struct {
+	Enable     bool     `yaml:"enable" json:"enable"`
+	CA         string   `yaml:"ca" json:"ca"`
+	CAKey      string   `yaml:"ca-key" json:"ca-key"`
+	SkipDomain []string `yaml:"skip-domain" json:"skip-domain"`
+	Ports      []string `yaml:"port-whitelist" json:"port-whitelist"`
 }
 
 type RawSniffingConfig struct {
@@ -745,6 +756,24 @@ func ParseRawConfig(rawCfg *RawConfig) (*Config, error) {
 	config.Sniffer, err = parseSniffer(rawCfg.Sniffer, ruleProviders)
 	if err != nil {
 		return nil, err
+	}
+
+	if rawCfg.Sniffer.MITM != nil && rawCfg.Sniffer.MITM.Enable {
+		ports, err := utils.NewUnsignedRangesFromList[uint16](rawCfg.Sniffer.MITM.Ports)
+		if err != nil {
+			return nil, fmt.Errorf("error in sniffer mitm port-whitelist, error: %w", err)
+		}
+		mitmSkipDomain, err := parseDomain(rawCfg.Sniffer.MITM.SkipDomain, nil, "sniffer.mitm.skip-domain", ruleProviders)
+		if err != nil {
+			return nil, err
+		}
+		config.MITM = &mitm.Config{
+			Enable:     true,
+			CA:         rawCfg.Sniffer.MITM.CA,
+			CAKey:      rawCfg.Sniffer.MITM.CAKey,
+			SkipDomain: mitmSkipDomain,
+			Ports:      ports,
+		}
 	}
 
 	elapsedTime := time.Since(startTime) / time.Millisecond                     // duration in ms

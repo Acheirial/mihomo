@@ -15,5 +15,15 @@ type AuthServer struct {
 	ClientAuthType string
 	ClientAuthCert string
 	EchKey         string
+	Mitm           *Mitm
 	RealityConfig  reality.Config
+}
+
+// Mitm for http/mixed server TLS interception
+type Mitm struct {
+	Enable        bool
+	Hosts         []string
+	CACertificate string
+	CAPrivateKey  string
+	StoreCA       bool
 }

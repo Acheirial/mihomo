@@ -16,6 +16,7 @@ import (
 	N "github.com/metacubex/mihomo/common/net"
 	"github.com/metacubex/mihomo/common/utils"
 	"github.com/metacubex/mihomo/component/loopback"
+	"github.com/metacubex/mihomo/component/mitm"
 	"github.com/metacubex/mihomo/component/nat"
 	"github.com/metacubex/mihomo/component/process"
 	"github.com/metacubex/mihomo/component/proxydialer"
@@ -64,9 +65,10 @@ var (
 
 	findProcessMode = atomic.NewInt32Enum(process.FindProcessStrict)
 
-	snifferDispatcher *sniffer.Dispatcher
-	sniffingEnable    = false
-
+	snifferDispatcher  *sniffer.Dispatcher
+	sniffingEnable     = false
+	mitmDispatcher     *mitm.Intercepter
+	mitmEnable         = false
 	ruleUpdateCallback = utils.NewCallback[P.RuleProvider]()
 )
 
@@ -244,6 +246,13 @@ func UpdateSniffer(dispatcher *sniffer.Dispatcher) {
 	configMux.Lock()
 	snifferDispatcher = dispatcher
 	sniffingEnable = dispatcher.Enable()
+	configMux.Unlock()
+}
+
+func UpdateMITM(intercepter *mitm.Intercepter) {
+	configMux.Lock()
+	mitmDispatcher = intercepter
+	mitmEnable = intercepter.Enable()
 	configMux.Unlock()
 }
 
@@ -505,9 +514,10 @@ func handleTCPConn(connCtx C.ConnContext) {
 		return
 	}
 
-	defer func(conn net.Conn) {
+	conn := connCtx.Conn()
+	defer func() {
 		_ = conn.Close()
-	}(connCtx.Conn())
+	}()
 
 	metadata := connCtx.Metadata()
 	if !metadata.Valid() {
@@ -521,14 +531,22 @@ func handleTCPConn(connCtx C.ConnContext) {
 		log.Debugln("[Metadata PreHandle] error: %s", err)
 		preHandleFailed = true
 	}
-
-	conn := connCtx.Conn()
 	conn.ResetPeeked() // reset before sniffer
 	if sniffingEnable && snifferDispatcher.Enable() {
 		// Try to sniff a domain when `preHandleMetadata` failed, this is usually
 		// caused by a "Fake DNS record missing" error when enhanced-mode is fake-ip.
 		if snifferDispatcher.TCPSniff(conn, metadata) {
 			// we now have a domain name
+			preHandleFailed = false
+		}
+	}
+
+	if mitmEnable && mitmDispatcher.Enable() && mitmDispatcher.ShouldIntercept(metadata) {
+		decrypted, err := mitmDispatcher.Intercept(conn, metadata)
+		if err != nil {
+			log.Debugln("[MITM] intercept failed: %v", err)
+		} else {
+			conn = N.NewBufferedConn(decrypted)
 			preHandleFailed = false
 		}
 	}
