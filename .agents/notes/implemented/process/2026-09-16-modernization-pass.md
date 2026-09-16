@@ -25,4 +25,4 @@ mihomo 主体代码停留在 Go 1.19 时代的写法:`ioutil.*` 已废弃、`glo
 ## Consequences
 
 - 收益:Go 写法收敛到单一惯例(`io.Discard`/`common/atomic` 泛型包装),新代码有明确规范可循;构建流程删掉 cgo 死遗产,vet 真正生效,加平台从改 37 处变成改模板;镜像与 CI 不再依赖漂浮 tag 与第三方 `@main` action,权限面最小化;所有改动对运行时行为零影响。
-- 代价:go 1.20 钉住的依赖组继续落后于最新版,后续升级被整体提下限这一前置绑死;alpine 3.22 仍在 minor 级滚动(不追求逐字节可复现);Makefile 的 define/eval 模板比手写展开多一层间接,读 Makefile 需要懂 GNU make 语法;geo 数据无版本化 tag 可 pin,上游只有滚动 latest,这条供应链面本批未收窄。
+- 收益(与 [可维护性批次](../simplification/2026-09-16-maintainability-pass.md) 互补:那批治代码结构与测试,本批治构建与 CI 基建):Go 写法收敛到单一惯例(`io.Discard`/`common/atomic` 泛型包装),新代码有明确规范可循;构建流程删掉 cgo 死遗产,vet 真正生效,加平台从改 37 处变成改模板;镜像与 CI 不再依赖漂浮 tag 与第三方 `@main` action,权限面最小化;所有改动对运行时行为零影响。
