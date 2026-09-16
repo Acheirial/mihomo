@@ -26,4 +26,4 @@ jobs:
 
       - name: Build and deploy
         working-directory: docs
-        run: mkdocs gh-deploy --force --remote origin --remote-branch gh-pages
+        run: mkdocs gh-deploy --force --remote-branch gh-pages
