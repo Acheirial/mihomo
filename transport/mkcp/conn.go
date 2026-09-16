@@ -11,7 +11,11 @@ import (
 	"time"
 )
 
-var globalConv uint32 = uint32(uint16(rand.Int63() >> 47))
+var globalConv atomic.Uint32
+
+func init() {
+	globalConv.Store(uint32(uint16(rand.Int63() >> 47)))
+}
 
 type connState int32
 
@@ -79,7 +83,7 @@ func Dial(ctx context.Context, raw net.Conn, cfg Config) (*Conn, error) {
 	if err != nil {
 		return nil, err
 	}
-	conv := uint16(atomic.AddUint32(&globalConv, 1))
+	conv := uint16(globalConv.Add(1))
 	conn := newConn(raw.LocalAddr(), raw.RemoteAddr(), conv, packetWriter{security: security, header: cfg.packetHeader(), writer: raw}, raw, cfg)
 	reader := packetReader{security: security, header: cfg.packetHeader()}
 	go func() {

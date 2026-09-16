@@ -9,7 +9,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"net"
 	"sync"
 	"sync/atomic"
@@ -74,8 +73,8 @@ type TCPConn struct {
 	ip6rule   []string
 
 	// deadlines
-	readDeadline  atomic.Value
-	writeDeadline atomic.Value
+	readDeadline  atomic.Pointer[time.Time]
+	writeDeadline atomic.Pointer[time.Time]
 
 	// serialization
 	opts gopacket.SerializeOptions
@@ -185,8 +184,8 @@ func (conn *TCPConn) captureFlow(handle *net.IPConn, port int) {
 func (conn *TCPConn) ReadFrom(p []byte) (n int, addr net.Addr, err error) {
 	var timer *time.Timer
 	var deadline <-chan time.Time
-	if d, ok := conn.readDeadline.Load().(time.Time); ok && !d.IsZero() {
-		timer = time.NewTimer(time.Until(d))
+	if d := conn.readDeadline.Load(); d != nil && !d.IsZero() {
+		timer = time.NewTimer(time.Until(*d))
 		defer timer.Stop()
 		deadline = timer.C
 	}
@@ -205,8 +204,8 @@ func (conn *TCPConn) ReadFrom(p []byte) (n int, addr net.Addr, err error) {
 // WriteTo implements the PacketConn WriteTo method.
 func (conn *TCPConn) WriteTo(p []byte, addr net.Addr) (n int, err error) {
 	var deadline <-chan time.Time
-	if d, ok := conn.writeDeadline.Load().(time.Time); ok && !d.IsZero() {
-		timer := time.NewTimer(time.Until(d))
+	if d := conn.writeDeadline.Load(); d != nil && !d.IsZero() {
+		timer := time.NewTimer(time.Until(*d))
 		defer timer.Stop()
 		deadline = timer.C
 	}
@@ -341,13 +340,13 @@ func (conn *TCPConn) SetDeadline(t time.Time) error {
 
 // SetReadDeadline implements the Conn SetReadDeadline method.
 func (conn *TCPConn) SetReadDeadline(t time.Time) error {
-	conn.readDeadline.Store(t)
+	conn.readDeadline.Store(&t)
 	return nil
 }
 
 // SetWriteDeadline implements the Conn SetWriteDeadline method.
 func (conn *TCPConn) SetWriteDeadline(t time.Time) error {
-	conn.writeDeadline.Store(t)
+	conn.writeDeadline.Store(&t)
 	return nil
 }
 
@@ -478,7 +477,7 @@ func Dial(network, address string) (*TCPConn, error) {
 	}
 
 	// discard everything
-	go io.Copy(ioutil.Discard, tcpconn)
+	go io.Copy(io.Discard, tcpconn)
 
 	return conn, nil
 }
@@ -592,7 +591,7 @@ func Listen(network, address string) (*TCPConn, error) {
 			conn.lockflow(tcpconn.RemoteAddr(), func(e *tcpFlow) { e.conn = tcpconn })
 
 			// discard everything
-			go io.Copy(ioutil.Discard, tcpconn)
+			go io.Copy(io.Discard, tcpconn)
 		}
 	}()
 

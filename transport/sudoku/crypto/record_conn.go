@@ -20,7 +20,12 @@ import (
 
 // KeyUpdateAfterBytes controls automatic key rotation based on plaintext bytes.
 // It is a package var (not config) to enable targeted tests with smaller thresholds.
-var KeyUpdateAfterBytes int64 = 32 << 20 // 32 MiB
+var KeyUpdateAfterBytes atomic.Int64
+
+func init() {
+	// Default 32MiB before automatic key rotation. Tests may override via Store.
+	KeyUpdateAfterBytes.Store(32 << 20)
+}
 
 const (
 	recordHeaderSize = 12 // epoch(uint32) + seq(uint64) - also used as nonce+AAD.
@@ -268,7 +273,7 @@ func deriveEpochKey(base []byte, epoch uint32, method string) []byte {
 }
 
 func (c *RecordConn) maybeBumpSendEpochLocked(addedPlain int) error {
-	ku := atomic.LoadInt64(&KeyUpdateAfterBytes)
+	ku := KeyUpdateAfterBytes.Load()
 	if ku <= 0 || c.method == "none" {
 		return nil
 	}
