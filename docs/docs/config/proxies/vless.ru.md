@@ -1,0 +1,86 @@
+# VLESS
+
+```{.yaml linenums="1"}
+proxies:
+- name: "vless"
+  type: vless
+  server: server
+  port: 443
+  udp: true
+  uuid: uuid
+  flow: xtls-rprx-vision
+  packet-encoding: xudp
+
+  tls: true
+  servername: example.com
+  alpn:
+  - h2
+  - http/1.1
+  fingerprint: xxxx
+  client-fingerprint: chrome
+  skip-cert-verify: true
+  name-cert-verify: example.com
+  shadow-tls-opts:
+    version: 3
+    password: shadow-tls-password
+  restls-opts:
+    password: restls-password
+    version-hint: tls13
+  jls-opts:
+    username: jls-user
+    password: jls-password
+  reality-opts:
+    public-key: xxxx
+    short-id: xxxx
+  encryption: ""
+
+  network: tcp
+
+  smux:
+    enabled: false
+```
+
+!!! note
+    Контроль потока `xtls-*` в Meta фактически эквивалентен `xtls-*-udp443` в Xray-core. Если нужно блокировать UDP-трафик на порту 443, используйте логическое правило: `AND,((NETWORK,UDP),(DST-PORT,443)),REJECT`
+
+[Общие поля](./index.md)
+
+[Поля TLS](./tls.md)
+
+## uuid
+
+Обязательно, ID пользователя VLESS
+
+## flow
+
+Подпротокол VLESS, доступное значение - `xtls-rprx-vision`
+
+## packet-encoding
+
+Кодирование UDP-пакетов, если пусто, используется оригинальное кодирование. Возможные значения: `packetaddr` (поддерживается `v2ray 5+`) / `xudp` (поддерживается `xray`)
+
+## encryption
+
+Конфигурация клиента шифрования Vless:
+
+`encryption: "mlkem768x25519plus.native/xorpub/random.1rtt/0rtt.(padding len).(padding gap).(X25519 Password).(ML-KEM-768 Client)..."`
+
+(XTLS Vision с native/xorpub поддерживает Splice. Используется только режим 1-RTT / если число секунд в ticket, отправленном сервером, не равно нулю, используется повторное использование 0-RTT.)
+
+/ Можно выбрать только один вариант. Далее следует как минимум одна строка base64. Разрешено неограниченное количество конкатенаций. Для генерации значения используйте `mihomo generate vless-x25519` и `mihomo generate vless-mlkem768`. При замене значения удалите скобки.
+
+Padding — необязательный параметр, применяемый только к 1-RTT для устранения характерных признаков длины рукопожатия. Значение по умолчанию на обеих сторонах — `100-111-1111.75-0-111.50-0-3333`:
+
+* После приветствия клиент/сервер с 1-RTT добавить случайное дополнение длиной от 111 до 1111 байт с вероятностью 100%.
+
+* С вероятностью 75% ожидать случайное время от 0 до 111 миллисекунд (`probability-from-to`).
+
+* С вероятностью 50% повторно отправить случайный padding длиной от 0 до 3333 байт (если длина равна 0, `Write()` не вызывается).
+
+* Сервер и клиент могут задавать разные параметры padding, которые можно неограниченно объединять в порядке `len`, `gap`. Первый padding должен иметь вероятность 100% и длину не менее 35 байт.
+
+## network
+
+Транспортный уровень, поддерживает ws/http/h2/grpc/xhttp, если не настроен или настроен с другим значением, используется tcp
+
+См. [Конфигурация транспортного уровня](./transport.md) 

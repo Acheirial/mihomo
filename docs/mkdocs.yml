@@ -1,0 +1,329 @@
+site_name: 虚空终端 Docs
+repo_url: https://github.com/MetaCubeX/mihomo
+repo_name: MetaCubeX/mihomo
+copyright: Copyright &copy 2023 mihomo
+edit_uri: "https://github.com/MetaCubeX/Meta-Docs/blob/main/docs/"
+dev_addr: "127.0.0.1:11451"
+extra:
+  generator: false
+  analytics:
+    provider: google
+    property: G-1BJ0XH0RSM
+  social:
+    - icon: fontawesome/brands/github
+      link: https://github.com/MetaCubeX/mihomo
+    - icon: material/file-document
+      link: https://github.com/MetaCubeX/Meta-Docs
+
+theme:
+  name: material
+  logo: assets/images.jpeg
+  favicon: assets/images.jpeg
+  features:
+    - search.highlight
+    - navigation.tracking
+    # - navigation.expand
+    - navigation.path
+    - navigation.indexes
+    - navigation.tracking
+    - navigation.top
+    - navigation.tabs
+    - navigation.sections
+    - toc.follow
+    - content.action.edit
+    - content.code.copy
+    - content.code.select
+    # - toc.integrate
+  palette:
+    - media: "(prefers-color-scheme)"
+      toggle:
+        icon: material/link
+        name: Switch to light mode
+    # Palette toggle for light mode
+    - media: "(prefers-color-scheme: light)"
+      scheme: default
+      primary: white
+      accent: blue
+      toggle:
+        icon: material/brightness-7
+        name: Switch to dark mode
+
+    - media: "(prefers-color-scheme: dark)"
+      scheme: slate
+      primary: indigo
+      accent: deep purple
+      toggle:
+        icon: material/brightness-4
+        name: Switch to system preference
+
+markdown_extensions:
+  - pymdownx.highlight:
+      anchor_linenums: true
+  - pymdownx.tabbed:
+      alternate_style: true
+  - toc:
+      permalink: true
+      toc_depth: 3
+      anchorlink: true
+  - admonition
+  - attr_list
+  - md_in_html
+  - pymdownx.details
+  - pymdownx.critic
+  - pymdownx.caret
+  - pymdownx.keys
+  - pymdownx.mark
+  - pymdownx.tilde
+  - pymdownx.magiclink
+
+  - pymdownx.superfences:
+      custom_fences:
+        - name: mermaid
+          class: mermaid
+          format: !!python/name:pymdownx.superfences.fence_code_format
+  - pymdownx.emoji:
+      emoji_generator: !!python/name:material.extensions.emoji.to_svg
+      emoji_index: !!python/name:material.extensions.emoji.twemoji
+
+plugins:
+  - search
+  - awesome-pages
+  - i18n:
+      docs_structure: suffix
+      fallback_to_default: true
+      reconfigure_material: true
+      reconfigure_search: true
+      languages:
+        - build: true
+          default: true
+          locale: zh
+          name: 简体中文
+        - build: true
+          default: false
+          locale: en
+          name: English
+          site_name: "mihomo docs"
+          nav_translations:
+            简介: Introduction
+            安装: Install
+            示例: Example
+            手册: Handbook
+            配置: Configuration
+
+            web面板: Web dashboard
+            客户端: Client
+            使用预编译二进制: Use prebuilt binaries
+            创建运行服务: Create a running service
+            三方工具/客户端: Third-party tools/client
+            常见问题: common problem
+
+            完整示例: Complete example
+            快捷配置: Quick configuration
+
+            语法: grammar
+            全局配置: General configuration
+            DNS配置: DNS configuration
+            DNS类型: DNS type
+            解析流程: DNS resolve process
+            域名嗅探: Domain sniffing
+            通用字段: Common fields
+            入站: Inbounds
+            入站配置: inbound configuration
+            代理端口: Proxy Port
+            出站代理: Proxies
+            TLS配置: TLS configuration
+            传输层配置: transport configuration
+            内置代理策略: built-in proxy policies
+            代理集合: Proxy-Providers
+            代理集合配置: proxy-providers configuration
+            代理集合内容: proxy-providers contents
+            代理组: Proxy-Groups
+            代理组配置: proxy-groups configuration
+            内置代理组: built-in proxy groups
+            手动选择: Select
+            自动选择: Url-Test
+            自动回退: Fallback
+            负载均衡: Load-Balance
+            链式代理: Relay
+            内置策略: Built-In
+            路由规则: Route Rules
+            规则集合: Rule-Providers
+            规则集合内容: rule-providers configuration
+            子规则: sub-rule
+            流量隧道: tunnels
+            实验性配置: experimental
+        - build: true
+          default: false
+          locale: ru
+          name: Русский
+          site_name: "Mihomo Docs"
+          nav_translations:
+            简介: Введение
+            安装: Установка
+            示例: Примеры
+            手册: Руководство
+            配置: Конфигурация
+
+            web面板: Веб-панель
+            客户端: Клиент
+            创建运行服务: Создание сервиса
+            三方工具/客户端: Сторонние инструменты/клиенты
+            常见问题: Часто задаваемые вопросы
+
+            完整示例: Полные примеры
+            快捷配置: Быстрая настройка
+
+            语法: Синтаксис
+            全局配置: Общие настройки
+            DNS配置: Настройка DNS
+            DNS类型: Типы DNS
+            解析流程: Процесс разрешения DNS
+            域名嗅探: Сниффинг доменов
+            通用字段: Общие поля
+            入站: Входящие соединения
+            入站配置: Настройка входящих соединений
+            代理端口: Порт прокси
+            出站代理: Прокси
+            代理集合: Провайдеры прокси
+            代理集合配置: Настройка провайдеров прокси
+            代理集合内容: Содержимое провайдеров прокси
+            代理组: Группы прокси
+            代理组配置: Настройка групп прокси
+            手动选择: Ручной выбор
+            自动选择: Автоматический выбор
+            自动回退: Автоматический откат
+            负载均衡: Балансировка нагрузки
+            链式代理: Цепочка прокси
+            内置策略: Встроенные политики
+            路由规则: Правила маршрутизации
+            规则集合: Провайдеры правил
+            规则集合内容: Настройка провайдеров правил
+            子规则: Подправила
+            流量隧道: Туннели
+            实验性配置: Экспериментальные настройки
+            使用预编译二进制: Использование предкомпилированных бинарных файлов
+            TLS配置: Настройка TLS
+            传输层配置: Настройка транспортного уровня
+            内置代理策略: Встроенные исходящие соединения
+            内置代理组: Предопределенные группы прокси
+
+  - git-revision-date-localized:
+      locale: zh
+
+nav:
+  - 简介: index.md
+  - 安装:
+    - startup/index.md
+    - 常见问题: startup/faq.md
+    - 使用预编译二进制: startup/index.md
+    - 客户端: startup/client/index.md
+    - web面板: startup/web.md
+
+    - 创建运行服务: startup/service/index.md
+    - 三方工具/客户端: startup/client/client.md
+  - 手册:
+    - handbook/index.md
+    - 语法: handbook/syntax.md
+    - 快捷配置: example/conf.md
+    # - dns工作原理: handbook/dns.md
+  - 配置:
+    - config/index.md
+    # - 完整示例: config/example.md
+    - 全局配置: config/general.md
+    - DNS:
+      - DNS配置: config/dns/index.md
+      - DNS类型: config/dns/type.md
+      - hosts: config/dns/hosts.md
+      - 解析流程: config/dns/diagram.md
+    - 域名嗅探: config/sniff/index.md
+    - MITM: config/mitm/index.md
+    - 入站:
+      - 入站配置: config/inbound/index.md
+      - 代理端口: config/inbound/port.md
+      - Tun: config/inbound/tun.md
+      - listeners:
+        - 通用字段: config/inbound/listeners/index.md
+        - http: config/inbound/listeners/http.md
+        - socks: config/inbound/listeners/socks.md
+        - mixed: config/inbound/listeners/mixed.md
+        - redirect: config/inbound/listeners/redirect.md
+        - tproxy: config/inbound/listeners/tproxy.md
+        - tun: config/inbound/listeners/tun.md
+        - ShadowSocks: config/inbound/listeners/ss.md
+        - VMess: config/inbound/listeners/vmess.md
+        - VLESS: config/inbound/listeners/vless.md
+        - Trojan: config/inbound/listeners/trojan.md
+        - AnyTLS: config/inbound/listeners/anytls.md
+        - Mieru: config/inbound/listeners/mieru.md
+        - Sudoku: config/inbound/listeners/sudoku.md
+        - TUIC v4: config/inbound/listeners/tuic-v4.md
+        - TUIC v5: config/inbound/listeners/tuic-v5.md
+        - ShadowQUIC: config/inbound/listeners/shadowquic.md
+        - Hysteria2: config/inbound/listeners/hysteria2.md
+        - Hysteria2 Realm: config/inbound/listeners/hysteria2-realm.md
+        - TrustTunnel: config/inbound/listeners/trusttunnel.md
+        - tunnel: config/inbound/listeners/tunnel.md
+        - Snell: config/inbound/listeners/snell.md
+    - 出站代理:
+      - 通用字段: config/proxies/index.md
+      - TLS配置: config/proxies/tls.md
+      - 传输层配置: config/proxies/transport.md
+      - dialer-proxy: config/proxies/dialer-proxy.md
+      - 内置代理策略: config/proxies/built-in.md
+      - DIRECT: config/proxies/direct.md
+      - DNS: config/proxies/dns.md
+      - Rematch: config/proxies/rematch.md
+      - HTTP: config/proxies/http.md
+      - SOCKS: config/proxies/socks.md
+      - Shadowsocks: config/proxies/ss.md
+      - ShadowsocksR: config/proxies/ssr.md
+      - Snell: config/proxies/snell.md
+      - VMess: config/proxies/vmess.md
+      - VLESS: config/proxies/vless.md
+      - Trojan: config/proxies/trojan.md
+      - AnyTLS: config/proxies/anytls.md
+      - Mieru: config/proxies/mieru.md
+      - Sudoku: config/proxies/sudoku.md
+      - Hysteria: config/proxies/hysteria.md
+      - Hysteria2: config/proxies/hysteria2.md
+      - TUIC: config/proxies/tuic.md
+      - ShadowQUIC: config/proxies/shadowquic.md
+      - WireGuard: config/proxies/wg.md
+      - EasyTier: config/proxies/easytier.md
+      - Tailscale: config/proxies/tailscale.md
+      - SSH: config/proxies/ssh.md
+      - MASQUE: config/proxies/masque.md
+      - TrustTunnel: config/proxies/trusttunnel.md
+      - ZeroTier: config/proxies/zerotier.md
+      - OpenVPN: config/proxies/openvpn.md
+    - 代理集合:
+      - 代理集合配置: config/proxy-providers/index.md
+      - 代理集合内容: config/proxy-providers/content.md
+    - 代理组:
+      - 代理组配置: config/proxy-groups/index.md
+      - 内置代理组: config/proxy-groups/built-in.md
+      - 手动选择: config/proxy-groups/select.md
+      - 自动选择: config/proxy-groups/url-test.md
+      - 自动回退: config/proxy-groups/fallback.md
+      - 负载均衡: config/proxy-groups/load-balance.md
+      - 链式代理: config/proxy-groups/relay.md
+    - 路由规则: config/rules/index.md
+      # - 域名规则: config/rules/domain.md
+      # - IP规则: config/rules/ip.md
+      # - 端口规则: config/rules/port.md
+      # - 进程规则: config/rules/process.md
+      # - 逻辑规则: config/rules/logic.md
+      # - GEO规则: config/rules/geox.md
+      # - 入站规则: config/rules/in.md
+      # - 网络类型规则: config/rules/network.md
+      # - 引用规则集合: config/rules/rule-set.md
+      # - 引用子规则: config/rules/sub-rule.md
+      # - 最终匹配: config/rules/match.md
+    - 规则集合:
+      - 规则集合: config/rule-providers/index.md
+      - 规则集合内容: config/rule-providers/content.md
+    - 子规则: config/sub-rule.md
+    - 流量隧道: config/tunnels.md
+    - NTP: config/ntp/index.md
+    - 实验性配置: config/experimental.md
+  - APIs: api/index.md

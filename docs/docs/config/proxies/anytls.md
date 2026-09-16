@@ -1,0 +1,57 @@
+# AnyTLS
+
+```{.yaml linenums="1"}
+proxies:
+- name: anytls
+  type: anytls
+  server: 1.2.3.4
+  port: 443
+  password: "<your password>"
+  client-fingerprint: chrome
+  udp: true
+  # client-metadata: ""
+  idle-session-check-interval: 30
+  idle-session-timeout: 30
+  min-idle-session: 0
+  sni: "example.com"
+  alpn:
+    - h2
+    - http/1.1
+  skip-cert-verify: true
+  name-cert-verify: example.com
+  shadow-tls-opts:
+    version: 3
+    password: shadow-tls-password
+  restls-opts:
+    password: restls-password
+    version-hint: tls13
+  jls-opts:
+    username: jls-user
+    password: jls-password
+```
+
+[通用字段](./index.md)
+
+[TLS 字段](./tls.md)
+
+!!! tip
+    Mihomo 不支持 AnyTLS+Reality 的组合（未来也不会支持）。如果您想隐藏 SNI，请配合 [ECH](./tls.md#ech-opts) 使用，或选择与 [ShadowTLS](./tls.md#shadow-tls-opts)、[ResTLS](./tls.md#restls-opts)、[JLS](./tls.md#jls-opts) 组合使用。如果您非要使用 Reality，请选择 [Vmess](./vmess.md)、[VLESS](./vless.md)、[Trojan](./trojan.md) 协议。
+
+## client-metadata
+
+可选，发送给服务端的客户端元数据
+
+!!! warning
+    由于 `client-metadata` 可能被用于统计客户端信息并区别对待，从 v1.19.30 开始默认不再发送该内容，如果需要请自行填写
+
+## idle-session-check-interval
+
+检查空闲会话的时间间隔。默认值：30 秒。
+
+## idle-session-timeout
+
+在检查中，关闭闲置时间超过此值的会话。默认值：30 秒。
+
+## min-idle-session
+
+在检查中，至少前 n 个空闲会话保持打开状态。默认值：n=0

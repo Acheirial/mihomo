@@ -1,0 +1,29 @@
+name: Deploy Docs
+
+on:
+  push:
+    branches: [Alpha]
+    paths:
+      - "docs/**"
+      - ".github/workflows/docs.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.x'
+
+      - name: Install mkdocs
+        run: pip install mkdocs-material mkdocs-awesome-pages-plugin mkdocs-static-i18n mkdocs-git-revision-date-localized-plugin
+
+      - name: Build and deploy
+        working-directory: docs
+        run: mkdocs gh-deploy --force --remote origin --remote-branch gh-pages
