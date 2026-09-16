@@ -546,8 +546,17 @@ func handleTCPConn(connCtx C.ConnContext) {
 		if err != nil {
 			log.Debugln("[MITM] intercept failed: %v", err)
 		} else {
-			conn = N.NewBufferedConn(decrypted)
-			preHandleFailed = false
+			if metadata.Type != C.INNER {
+				conn = N.NewBufferedConn(decrypted)
+				if rr := mitmDispatcher.Rewrites(); rr != nil && !rr.Empty() && handleMITMRewrite(conn, metadata) {
+					_ = conn.Close()
+					return
+				}
+				preHandleFailed = false
+			} else {
+				conn = N.NewBufferedConn(decrypted)
+				preHandleFailed = false
+			}
 		}
 	}
 

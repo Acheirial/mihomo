@@ -394,6 +394,7 @@ type RawMITM struct {
 	CAKey      string   `yaml:"ca-key" json:"ca-key"`
 	SkipDomain []string `yaml:"skip-domain" json:"skip-domain"`
 	Ports      []string `yaml:"port-whitelist" json:"port-whitelist"`
+	Rules      []string `yaml:"rules" json:"rules"`
 }
 
 type RawSniffingConfig struct {
@@ -773,6 +774,7 @@ func ParseRawConfig(rawCfg *RawConfig) (*Config, error) {
 			CAKey:      rawCfg.Sniffer.MITM.CAKey,
 			SkipDomain: mitmSkipDomain,
 			Ports:      ports,
+			Rules:      rawCfg.Sniffer.MITM.Rules,
 		}
 	}
 

@@ -12,8 +12,10 @@ import (
 
 	N "github.com/metacubex/mihomo/common/net"
 	"github.com/metacubex/mihomo/common/utils"
+	"github.com/metacubex/mihomo/component/mitm/rewrite"
 	"github.com/metacubex/mihomo/component/sniffer"
 	C "github.com/metacubex/mihomo/constant"
+	"github.com/metacubex/mihomo/log"
 )
 
 const (
@@ -42,6 +44,7 @@ type Config struct {
 	CAKey      string // PEM path or inline; required if CA is a file and has separate key
 	SkipDomain []C.DomainMatcher
 	Ports      utils.IntRanges[uint16]
+	Rules      []string // HTTP rewrite rules, e.g. `^https?://... url 302 https://...`
 }
 
 // Intercepter terminates client TLS on selected connections, presenting
@@ -51,6 +54,7 @@ type Intercepter struct {
 	ports      utils.IntRanges[uint16]
 	skipDomain []C.DomainMatcher
 	ca         *caKey
+	rewrites   *rewrite.Rules
 
 	certMu  sync.RWMutex
 	certs   map[string]*tls.Certificate
@@ -74,12 +78,31 @@ func New(cfg Config) (*Intercepter, error) {
 		return nil, fmt.Errorf("initialize mitm ca: %w", err)
 	}
 	i.ca = ca
+	if len(cfg.Rules) > 0 {
+		rewrites, err := rewrite.NewRules(cfg.Rules)
+		if err != nil {
+			// Bad rules degrade to no rewriting instead of failing the
+			// whole MITM setup; interception itself still works.
+			log.Warnln("initial mitm rewrite rules failed, rewriting disabled, err:%v", err)
+		} else {
+			i.rewrites = rewrites
+		}
+	}
 	return i, nil
 }
 
 // Enable reports whether interception is active; false if i is nil.
 func (i *Intercepter) Enable() bool {
 	return i != nil && i.enable
+}
+
+// Rewrites returns the configured rewrite rules, or nil when i is nil or no
+// valid rules were configured.
+func (i *Intercepter) Rewrites() *rewrite.Rules {
+	if i == nil {
+		return nil
+	}
+	return i.rewrites
 }
 
 // ShouldIntercept reports whether the connection described by metadata
