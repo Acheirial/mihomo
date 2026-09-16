@@ -328,7 +328,8 @@ jobs:
           checksums.txt
 
   Upload-Prerelease:
-    permissions: write-all
+    permissions:
+      contents: write
     if: ${{ github.event_name != 'workflow_dispatch' && github.ref_type == 'branch' && !startsWith(github.event_name, 'pull_request') }}
     needs: [build]
     runs-on: ubuntu-latest
@@ -347,11 +348,15 @@ jobs:
       shell: bash
 
     - name: Delete current release assets
-      uses: 8Mi-Tech/delete-release-assets-action@main
-      with:
-        github_token: ${{ secrets.GITHUB_TOKEN }}
-        tag: Prerelease-${{ github.ref_name }}
-        deleteOnlyFromDrafts: false
+      env:
+        GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        TAG: Prerelease-${{ github.ref_name }}
+      run: |
+        gh release view "$TAG" >/dev/null 2>&1 || exit 0
+        gh release view "$TAG" --json assets --jq '.assets[].name' | while read -r asset; do
+          gh release delete-asset "$TAG" "$asset" --yes
+        done
+      shell: bash
     - name: Set Env
       run: |
         echo "BUILDTIME=$(TZ=Asia/Shanghai date)" >> $GITHUB_ENV
@@ -386,7 +391,8 @@ jobs:
         body_path: release.txt
 
   Upload-Release:
-    permissions: write-all
+    permissions:
+      contents: write
     if: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.version != '' }}
     needs: [build]
     runs-on: ubuntu-latest
@@ -446,7 +452,9 @@ jobs:
 
   Docker:
     if: ${{ !startsWith(github.event_name, 'pull_request') }}
-    permissions: write-all
+    permissions:
+      contents: write
+      packages: write
     needs: [build]
     runs-on: ubuntu-latest
     steps:

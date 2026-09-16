@@ -12,6 +12,9 @@ on:
   pull_request:
     branches:
       - Alpha
+concurrency:
+  group: "${{ github.workflow }}-${{ github.ref }}"
+  cancel-in-progress: ${{ github.ref != format('refs/heads/{0}', github.event.repository.default_branch) }}
 
 jobs:
   test:
@@ -45,7 +48,7 @@ jobs:
       # Skip mihomo inbound interop test
       SKIP_INTEROP_TEST: 1
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
 
       - name: Set up Go
         uses: actions/setup-go@4a3601121dd01d1626a1e23e37211e3254c1c06c
