@@ -7,7 +7,7 @@ require (
 	github.com/bahlo/generic-list-go v0.2.0
 	github.com/coreos/go-iptables v0.8.0
 	github.com/dlclark/regexp2 v1.12.0
-	github.com/easytier/easytier/easytier-go v0.0.0-20260910071355-3d0c9c3ca5e2
+	github.com/easytier/easytier/easytier-go v0.0.0-20260916045008-5477d4bca2f1
 	github.com/enfein/mieru/v3 v3.37.0
 	github.com/expr-lang/expr v1.17.8
 	github.com/gobwas/ws v1.4.0
@@ -30,14 +30,14 @@ require (
 	github.com/metacubex/jls-tls v0.0.0-20260723084315-67adc0e2f796
 	github.com/metacubex/kcp-go v0.0.0-20260105040817-550693377604
 	github.com/metacubex/mhurl v0.1.0
-	github.com/metacubex/mipstack v0.0.0-20260910230046-ba762df4c91d
+	github.com/metacubex/mipstack v0.0.0-20260915091829-2b7ccf43fc58
 	github.com/metacubex/mlkem v0.1.0
 	github.com/metacubex/quic-go v0.61.1-0.20260727080200-2548683b76f4
 	github.com/metacubex/randv2 v0.2.0
 	github.com/metacubex/restls-client-go v0.1.9
 	github.com/metacubex/sevenzip v1.6.4
 	github.com/metacubex/sing v0.5.7
-	github.com/metacubex/sing-mux v0.3.10
+	github.com/metacubex/sing-mux v0.3.11
 	github.com/metacubex/sing-quic v0.0.0-20260904234848-1c242664697a
 	github.com/metacubex/sing-shadowsocks v0.2.13
 	github.com/metacubex/sing-shadowsocks2 v0.2.8
