@@ -5,6 +5,11 @@ import (
 	"strings"
 )
 
+// DnsRespectRules is a special proxy name marker: when a DNS nameserver's
+// proxy is set to it, DNS requests are routed through the rule engine
+// instead of a named proxy adapter.
+const DnsRespectRules = "RULES"
+
 // DNSModeMapping is a mapping for EnhancedMode enum
 var DNSModeMapping = map[string]DNSMode{
 	DNSNormal.String():  DNSNormal,

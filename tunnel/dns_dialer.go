@@ -15,8 +15,6 @@ import (
 	"github.com/metacubex/mihomo/tunnel/statistic"
 )
 
-const DnsRespectRules = "RULES"
-
 type DNSDialer struct {
 	r            resolver.Resolver
 	proxyAdapter C.ProxyAdapter
@@ -54,7 +52,7 @@ func (d *DNSDialer) DialContext(ctx context.Context, network, addr string) (net.
 	}
 
 	if proxyAdapter == nil && len(proxyName) != 0 {
-		if proxyName == DnsRespectRules {
+		if proxyName == C.DnsRespectRules {
 			if !metadata.Resolved() {
 				// resolve here before resolveMetadata to avoid its inner resolver.ResolveIP
 				dstIP, err := resolver.ResolveIPWithResolver(ctx, metadata.Host, r)
@@ -152,7 +150,7 @@ func (d *DNSDialer) ListenPacket(ctx context.Context, network, addr string) (net
 
 	var rule C.Rule
 	if proxyAdapter == nil {
-		if proxyName == DnsRespectRules {
+		if proxyName == C.DnsRespectRules {
 			proxyAdapter, rule, err = resolveMetadata(metadata)
 			if err != nil {
 				return nil, err
