@@ -1,4 +1,4 @@
-FROM alpine:latest as builder
+FROM alpine:3.22 AS builder
 ARG TARGETPLATFORM
 RUN echo "I'm building for $TARGETPLATFORM"
 
@@ -14,10 +14,19 @@ COPY bin/ bin/
 RUN FILE_NAME=`sh file-name.sh` && echo $FILE_NAME && \
     FILE_NAME=`ls bin/ | egrep "$FILE_NAME.gz"|awk NR==1` && echo $FILE_NAME && \
     mv bin/$FILE_NAME mihomo.gz && gzip -d mihomo.gz && chmod +x mihomo && echo "$FILE_NAME" > /mihomo-config/test
-FROM alpine:latest
+FROM alpine:3.22
 LABEL org.opencontainers.image.source="https://github.com/MetaCubeX/mihomo"
 
 RUN apk add --no-cache ca-certificates tzdata iptables
+
+# Kept running as root on purpose:
+# - The baked-in geo databases and the default VOLUME live in /root/.config/mihomo;
+#   alpine's /root is mode 700, so an unprivileged user cannot reach them, and
+#   relocating them would break existing volume mounts.
+# - TUN mode needs NET_ADMIN on /dev/net/tun; --cap-add only takes effect for the
+#   root process (non-root would need ambient capabilities).
+# To run non-root, override explicitly, e.g.:
+#   docker run --user mihomo -e HOME=/home/mihomo ... (config then at $HOME/.config/mihomo)
 
 VOLUME ["/root/.config/mihomo/"]
 

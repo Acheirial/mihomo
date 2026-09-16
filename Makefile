@@ -55,128 +55,63 @@ WINDOWS_ARCH_LIST = \
 	windows-amd64-v2 \
 	windows-amd64-v3 \
 	windows-arm64 \
-    windows-arm32v7
+	windows-arm32v7
 
-all:linux-amd64-v3 linux-arm64\
-	darwin-amd64-v3 darwin-arm64\
- 	windows-amd64-v3 windows-arm64\
-
+all: linux-amd64-v3 linux-arm64 \
+	darwin-amd64-v3 darwin-arm64 \
+	windows-amd64-v3 windows-arm64
 
 darwin-all: darwin-amd64-v3 darwin-arm64
 
 docker:
 	GOAMD64=v1 $(GOBUILD) -o $(BINDIR)/$(NAME)-$@
 
-darwin-386:
-	GOARCH=386 GOOS=darwin $(GOBUILD) -o $(BINDIR)/$(NAME)-$@
+# Parameterized cross-compile rule:
+#   $(1) target name, $(2) GOARCH, $(3) GOOS,
+#   $(4) extra GO env (GOAMD64/GOARM/GOMIPS), $(5) output file suffix
+define platform_rule
+$(1):
+	GOARCH=$(2) GOOS=$(3)$(if $(4), $(4),) $$(GOBUILD) -o $$(BINDIR)/$$(NAME)-$$@$(5)
 
-darwin-amd64-compatible:
-	GOARCH=amd64 GOOS=darwin GOAMD64=v1 $(GOBUILD) -o $(BINDIR)/$(NAME)-$@
+endef
 
-darwin-amd64:
-	GOARCH=amd64 GOOS=darwin GOAMD64=v3 $(GOBUILD) -o $(BINDIR)/$(NAME)-$@
-
-darwin-amd64-v1:
-	GOARCH=amd64 GOOS=darwin GOAMD64=v1 $(GOBUILD) -o $(BINDIR)/$(NAME)-$@
-
-darwin-amd64-v2:
-	GOARCH=amd64 GOOS=darwin GOAMD64=v2 $(GOBUILD) -o $(BINDIR)/$(NAME)-$@
-
-darwin-amd64-v3:
-	GOARCH=amd64 GOOS=darwin GOAMD64=v3 $(GOBUILD) -o $(BINDIR)/$(NAME)-$@
-
-darwin-arm64:
-	GOARCH=arm64 GOOS=darwin $(GOBUILD) -o $(BINDIR)/$(NAME)-$@
-
-linux-386:
-	GOARCH=386 GOOS=linux $(GOBUILD) -o $(BINDIR)/$(NAME)-$@
-
-linux-amd64-compatible:
-	GOARCH=amd64 GOOS=linux GOAMD64=v1 $(GOBUILD) -o $(BINDIR)/$(NAME)-$@
-
-linux-amd64:
-	GOARCH=amd64 GOOS=linux GOAMD64=v3 $(GOBUILD) -o $(BINDIR)/$(NAME)-$@
-
-linux-amd64-v1:
-	GOARCH=amd64 GOOS=linux GOAMD64=v1 $(GOBUILD) -o $(BINDIR)/$(NAME)-$@
-
-linux-amd64-v2:
-	GOARCH=amd64 GOOS=linux GOAMD64=v2 $(GOBUILD) -o $(BINDIR)/$(NAME)-$@
-
-linux-amd64-v3:
-	GOARCH=amd64 GOOS=linux GOAMD64=v3 $(GOBUILD) -o $(BINDIR)/$(NAME)-$@
-
-linux-arm64:
-	GOARCH=arm64 GOOS=linux $(GOBUILD) -o $(BINDIR)/$(NAME)-$@
-
-linux-armv5:
-	GOARCH=arm GOOS=linux GOARM=5 $(GOBUILD) -o $(BINDIR)/$(NAME)-$@
-
-linux-armv6:
-	GOARCH=arm GOOS=linux GOARM=6 $(GOBUILD) -o $(BINDIR)/$(NAME)-$@
-
-linux-armv7:
-	GOARCH=arm GOOS=linux GOARM=7 $(GOBUILD) -o $(BINDIR)/$(NAME)-$@
-
-linux-mips-softfloat:
-	GOARCH=mips GOMIPS=softfloat GOOS=linux $(GOBUILD) -o $(BINDIR)/$(NAME)-$@
-
-linux-mips-hardfloat:
-	GOARCH=mips GOMIPS=hardfloat GOOS=linux $(GOBUILD) -o $(BINDIR)/$(NAME)-$@
-
-linux-mipsle-softfloat:
-	GOARCH=mipsle GOMIPS=softfloat GOOS=linux $(GOBUILD) -o $(BINDIR)/$(NAME)-$@
-
-linux-mipsle-hardfloat:
-	GOARCH=mipsle GOMIPS=hardfloat GOOS=linux $(GOBUILD) -o $(BINDIR)/$(NAME)-$@
-
-linux-mips64:
-	GOARCH=mips64 GOOS=linux $(GOBUILD) -o $(BINDIR)/$(NAME)-$@
-
-linux-mips64le:
-	GOARCH=mips64le GOOS=linux $(GOBUILD) -o $(BINDIR)/$(NAME)-$@
-
-linux-riscv64:
-	GOARCH=riscv64 GOOS=linux $(GOBUILD) -o $(BINDIR)/$(NAME)-$@
-	
-linux-loong64:
-	GOARCH=loong64 GOOS=linux $(GOBUILD) -o $(BINDIR)/$(NAME)-$@
-
-android-arm64:
-	GOARCH=arm64 GOOS=android $(GOBUILD) -o $(BINDIR)/$(NAME)-$@
-
-freebsd-386:
-	GOARCH=386 GOOS=freebsd $(GOBUILD) -o $(BINDIR)/$(NAME)-$@
-
-freebsd-amd64:
-	GOARCH=amd64 GOOS=freebsd GOAMD64=v3 $(GOBUILD) -o $(BINDIR)/$(NAME)-$@
-
-freebsd-arm64:
-	GOARCH=arm64 GOOS=freebsd $(GOBUILD) -o $(BINDIR)/$(NAME)-$@
-
-windows-386:
-	GOARCH=386 GOOS=windows $(GOBUILD) -o $(BINDIR)/$(NAME)-$@.exe
-
-windows-amd64-compatible:
-	GOARCH=amd64 GOOS=windows GOAMD64=v1 $(GOBUILD) -o $(BINDIR)/$(NAME)-$@.exe
-
-windows-amd64:
-	GOARCH=amd64 GOOS=windows GOAMD64=v3 $(GOBUILD) -o $(BINDIR)/$(NAME)-$@.exe
-
-windows-amd64-v1:
-	GOARCH=amd64 GOOS=windows GOAMD64=v1 $(GOBUILD) -o $(BINDIR)/$(NAME)-$@.exe
-
-windows-amd64-v2:
-	GOARCH=amd64 GOOS=windows GOAMD64=v2 $(GOBUILD) -o $(BINDIR)/$(NAME)-$@.exe
-
-windows-amd64-v3:
-	GOARCH=amd64 GOOS=windows GOAMD64=v3 $(GOBUILD) -o $(BINDIR)/$(NAME)-$@.exe
-
-windows-arm64:
-	GOARCH=arm64 GOOS=windows $(GOBUILD) -o $(BINDIR)/$(NAME)-$@.exe
-
-windows-arm32v7:
-	GOARCH=arm GOOS=windows GOARM=7 $(GOBUILD) -o $(BINDIR)/$(NAME)-$@.exe
+$(eval $(call platform_rule,darwin-386,386,darwin))
+$(eval $(call platform_rule,darwin-amd64-compatible,amd64,darwin,GOAMD64=v1))
+$(eval $(call platform_rule,darwin-amd64,amd64,darwin,GOAMD64=v3))
+$(eval $(call platform_rule,darwin-amd64-v1,amd64,darwin,GOAMD64=v1))
+$(eval $(call platform_rule,darwin-amd64-v2,amd64,darwin,GOAMD64=v2))
+$(eval $(call platform_rule,darwin-amd64-v3,amd64,darwin,GOAMD64=v3))
+$(eval $(call platform_rule,darwin-arm64,arm64,darwin))
+$(eval $(call platform_rule,linux-386,386,linux))
+$(eval $(call platform_rule,linux-amd64-compatible,amd64,linux,GOAMD64=v1))
+$(eval $(call platform_rule,linux-amd64,amd64,linux,GOAMD64=v3))
+$(eval $(call platform_rule,linux-amd64-v1,amd64,linux,GOAMD64=v1))
+$(eval $(call platform_rule,linux-amd64-v2,amd64,linux,GOAMD64=v2))
+$(eval $(call platform_rule,linux-amd64-v3,amd64,linux,GOAMD64=v3))
+$(eval $(call platform_rule,linux-arm64,arm64,linux))
+$(eval $(call platform_rule,linux-armv5,arm,linux,GOARM=5))
+$(eval $(call platform_rule,linux-armv6,arm,linux,GOARM=6))
+$(eval $(call platform_rule,linux-armv7,arm,linux,GOARM=7))
+$(eval $(call platform_rule,linux-mips64,mips64,linux))
+$(eval $(call platform_rule,linux-mips64le,mips64le,linux))
+$(eval $(call platform_rule,linux-mips-softfloat,mips,linux,GOMIPS=softfloat))
+$(eval $(call platform_rule,linux-mips-hardfloat,mips,linux,GOMIPS=hardfloat))
+$(eval $(call platform_rule,linux-mipsle-softfloat,mipsle,linux,GOMIPS=softfloat))
+$(eval $(call platform_rule,linux-mipsle-hardfloat,mipsle,linux,GOMIPS=hardfloat))
+$(eval $(call platform_rule,linux-riscv64,riscv64,linux))
+$(eval $(call platform_rule,linux-loong64,loong64,linux))
+$(eval $(call platform_rule,android-arm64,arm64,android))
+$(eval $(call platform_rule,freebsd-386,386,freebsd))
+$(eval $(call platform_rule,freebsd-amd64,amd64,freebsd,GOAMD64=v3))
+$(eval $(call platform_rule,freebsd-arm64,arm64,freebsd))
+$(eval $(call platform_rule,windows-386,386,windows,,.exe))
+$(eval $(call platform_rule,windows-amd64-compatible,amd64,windows,GOAMD64=v1,.exe))
+$(eval $(call platform_rule,windows-amd64,amd64,windows,GOAMD64=v3,.exe))
+$(eval $(call platform_rule,windows-amd64-v1,amd64,windows,GOAMD64=v1,.exe))
+$(eval $(call platform_rule,windows-amd64-v2,amd64,windows,GOAMD64=v2,.exe))
+$(eval $(call platform_rule,windows-amd64-v3,amd64,windows,GOAMD64=v3,.exe))
+$(eval $(call platform_rule,windows-arm64,arm64,windows,,.exe))
+$(eval $(call platform_rule,windows-arm32v7,arm,windows,GOARM=7,.exe))
 
 gz_releases=$(addsuffix .gz, $(PLATFORM_LIST))
 zip_releases=$(addsuffix .zip, $(WINDOWS_ARCH_LIST))
@@ -193,14 +128,10 @@ all-arch: $(PLATFORM_LIST) $(WINDOWS_ARCH_LIST)
 releases: $(gz_releases) $(zip_releases)
 
 vet:
-	go test ./...
+	go vet ./...
 
 lint:
 	golangci-lint run ./...
 
 clean:
 	rm $(BINDIR)/*
-
-CLANG ?= clang-14
-CFLAGS := -O2 -g -Wall -Werror $(CFLAGS)
-
