@@ -11,28 +11,36 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// arrivedBarrier makes fn wait until all concurrent callers of Do have
-// registered, so duplicate suppression is observed deterministically rather
-// than depending on goroutine scheduling.
-func arrivedBarrier(arrived *int32, total int32, work func() (int, error)) func() (int, error) {
-	return func() (int, error) {
-		deadline := time.Now().Add(10 * time.Second)
-		for atomic.LoadInt32(arrived) != total {
-			if time.Now().After(deadline) {
-				panic("singleflight: concurrent callers never arrived")
-			}
-			time.Sleep(50 * time.Microsecond)
+// waitForDups blocks until at least n duplicate callers have entered Do for
+// the in-flight call of key. Unlike a pre-Do arrival counter, this waits on
+// Group's own dups field, so the leader cannot finish and delete the key
+// before the duplicates have actually joined.
+func waitForDups(g *Group[int], key string, n int) {
+	deadline := time.Now().Add(10 * time.Second)
+	for {
+		g.mu.Lock()
+		c := g.m[key]
+		dups := 0
+		if c != nil {
+			dups = c.dups
 		}
-		return work()
+		g.mu.Unlock()
+		if dups >= n {
+			return
+		}
+		if time.Now().After(deadline) {
+			panic("singleflight: concurrent callers never joined")
+		}
+		time.Sleep(50 * time.Microsecond)
 	}
 }
 
-// callConcurrent invokes g.Do from total goroutines once every caller has
-// registered, and collects the results indexed by caller.
+// callConcurrent starts total goroutines on the same key. The leader waits
+// until the other total-1 callers have incremented dups before running work,
+// so duplicate suppression is observed without depending on scheduler luck.
 func callConcurrent(t *testing.T, g *Group[int], total int, key string, work func() (int, error)) (vals []int, errs []error, shared []bool) {
 	t.Helper()
 
-	var arrived int32
 	vals = make([]int, total)
 	errs = make([]error, total)
 	shared = make([]bool, total)
@@ -42,8 +50,10 @@ func callConcurrent(t *testing.T, g *Group[int], total int, key string, work fun
 	for i := 0; i < total; i++ {
 		go func(i int) {
 			defer wg.Done()
-			atomic.AddInt32(&arrived, 1)
-			vals[i], errs[i], shared[i] = g.Do(key, arrivedBarrier(&arrived, int32(total), work))
+			vals[i], errs[i], shared[i] = g.Do(key, func() (int, error) {
+				waitForDups(g, key, total-1)
+				return work()
+			})
 		}(i)
 	}
 	wg.Wait()
@@ -75,16 +85,15 @@ func TestDo_EachKeyRunsOnce(t *testing.T) {
 	const perKey = 4
 	for k := 0; k < 5; k++ {
 		key := string(rune('a' + k))
-		var arrived int32
 		for i := 0; i < perKey; i++ {
 			wg.Add(1)
 			go func() {
 				defer wg.Done()
-				atomic.AddInt32(&arrived, 1)
-				val, _, shared := g.Do(key, arrivedBarrier(&arrived, perKey, func() (int, error) {
+				val, _, shared := g.Do(key, func() (int, error) {
+					waitForDups(&g, key, perKey-1)
 					atomic.AddInt32(&calls, 1)
 					return 1, nil
-				}))
+				})
 				assert.Equal(t, 1, val)
 				assert.True(t, shared)
 			}()
@@ -120,7 +129,6 @@ func TestDo_PanicIsRePanickedToCallers(t *testing.T) {
 	var calls int32
 
 	const total = 8
-	var arrived int32
 	recovered := make([]any, total)
 	var wg sync.WaitGroup
 	wg.Add(total)
@@ -130,11 +138,11 @@ func TestDo_PanicIsRePanickedToCallers(t *testing.T) {
 			defer func() {
 				recovered[i] = recover()
 			}()
-			atomic.AddInt32(&arrived, 1)
-			g.Do("panic-key", arrivedBarrier(&arrived, int32(total), func() (int, error) {
+			g.Do("panic-key", func() (int, error) {
+				waitForDups(&g, "panic-key", total-1)
 				atomic.AddInt32(&calls, 1)
 				panic(sentinel)
-			}))
+			})
 		}(i)
 	}
 	wg.Wait()

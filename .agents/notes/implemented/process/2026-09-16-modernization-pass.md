@@ -12,7 +12,7 @@ mihomo 主体代码停留在 Go 1.19 时代的写法:`ioutil.*` 已废弃、`glo
 - **go 1.20 下限保持不动**:它是 upstream 为 Win7/老 macOS 刻意维护的兼容面。`x/*` 家族、logrus、brotli、miekg/dns 等被精准钉在各自最后 go1.20 兼容 tag,单独拔高任何一个都会牵动整组。本批只跟进 `sing-mux v0.3.11` 与 mipstack/easytier pseudo 版本。
 - **Makefile 收敛**:`go vet` 目标从 `go test` 改回真正的 `go vet`;CLANG/CFLAGS 等 cgo 时代死代码删除;37 个平台目标收敛为 `define` + `eval` 参数化模板,目标名与产物名全部不变;AGENTS.md 同步。
 - **Dockerfile 基础镜像钉 minor tag**:`alpine:latest` → `alpine:3.22`,不 pin digest;保持 root 运行并加注释说明原因与非 root 覆盖方式。
-- **CI 收紧**:docs.yml 的 checkout/setup-python 升 v7,新建 `docs/requirements.txt` 锁版本并配 pip 缓存;build.yml 的第三方 `8Mi-Tech/delete-release-assets-action@main` 替换为 `gh release delete-asset` 步骤,三个 job 权限从 write-all 最小化为 `contents`/`packages`;test.yml 对非默认分支加 concurrency cancel;`.golangci.yaml` 的 `staticcheck.go` 1.19 → 1.20 与工具链下限对齐。
+- **CI 收紧**:docs.yml 的 checkout/setup-python 升 v7,新建 `docs/requirements.txt` 锁版本并配 pip 缓存;build.yml 的第三方 `8Mi-Tech/delete-release-assets-action@main` 替换为 `gh release delete-asset` 步骤,job 权限从 write-all 最小化为 `contents`(Docker Hub 推送已从本 fork 删除,见 [drop docker hub push](2026-09-17-drop-docker-hub-push.md));test.yml 对非默认分支加 concurrency cancel;`.golangci.yaml` 的 `staticcheck.go` 1.19 → 1.20 与工具链下限对齐。
 
 ## Alternatives considered
 

@@ -38,7 +38,7 @@ Status: implemented
 - `go test ./config/ ./rules/... ./common/singleflight/ ./common/deque/ ./dns/ ./common/utils/` 全绿(rules: 17 顶层 124 子测试;singleflight 94.1% 覆盖,deque 28.9% 覆盖目标 API 面)。
 - 单测质量验证:`TestCommon2` 对 4 处变异(`PopFront` 读尾、空 `Pop` 不 panic、`Do` 丢 `wg.Wait`、吞 panic)做变异测试,每个变异被新测试抓出 4–9 个失败——测试不是凑数。
 - `gofmt` 全部新文件干净。
-- 已知存量 flake:`common/xsync` 两个并行 map 测试在干净 HEAD 上也偶发失败(时序依赖),与本批无关。
+- 已知存量 flake:`common/xsync` 两个并行 map 测试在干净 HEAD 上也偶发失败(时序依赖),与本批无关。`common/singleflight` 补测随后在 CI 上暴露 `arrivedBarrier` 调度竞态,会合点已改为等 `dups`,见 [singleflight dups 栅栏](../testing/2026-09-17-singleflight-dups-barrier.md)。
 
 ## Alternatives considered
 
