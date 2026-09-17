@@ -96,6 +96,19 @@ npx tsx .agents/skills/write-notes-like-deepseek/scripts/verify-archived-agent-n
 npx tsx .agents/skills/write-notes-like-deepseek/scripts/archive-agent-note.ts <笔记> --superseded-by <新笔记>  # 归档被取代决策
 ```
 
+## Go LSP / DAP
+
+本机已装好并验证可用，**直接用，不要重复安装**：
+
+- **gopls**（LSP）v0.23.0，`~/.local/bin/gopls`。优先用 `lsp` 工具做定义/引用/悬停/重命名/诊断，跨文件改动必须走 `lsp rename`，不要用 sed/手改。
+- **dlv**（DAP）v1.27.2，`~/go/bin/dlv`。用 `debug` 工具调试：`launch` 时 `adapter: "dlv"`、`program` 可以直接给包目录（dlv 支持目录目标，会自己 build）。
+
+注意事项：
+
+- 调试真实包时编译耗时可能超过默认超时，`launch` 带上 `timeout: 60` 以上。
+- dlv 停在入口的瞬间查 `stack_trace`/求值局部变量会报错——等一两秒或先 `continue` 后再查，这是 Delve 初始化时序，不是故障。
+- `/tmp` 是 tmpfs 且配额小（<500M）：编译 Go 报 `disk quota exceeded` 时先清 `/tmp/go-build*`，或设 `GOTMPDIR=/home/dev/tmp`。
+
 ## 代码规范与常见模式
 
 - **Go 版本**：go.mod 要求较新 Go（CI 矩阵覆盖 1.20–1.26；代码保持兼容 1.20）。
