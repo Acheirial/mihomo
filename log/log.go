@@ -35,24 +35,36 @@ func (e *Event) Type() string {
 }
 
 func Infoln(format string, v ...any) {
+	if INFO < level && !source.HasSubscribers() {
+		return
+	}
 	event := newLog(INFO, format, v...)
 	logCh <- event
 	print(event)
 }
 
 func Warnln(format string, v ...any) {
+	if WARNING < level && !source.HasSubscribers() {
+		return
+	}
 	event := newLog(WARNING, format, v...)
 	logCh <- event
 	print(event)
 }
 
 func Errorln(format string, v ...any) {
+	if ERROR < level && !source.HasSubscribers() {
+		return
+	}
 	event := newLog(ERROR, format, v...)
 	logCh <- event
 	print(event)
 }
 
 func Debugln(format string, v ...any) {
+	if DEBUG < level && !source.HasSubscribers() {
+		return
+	}
 	event := newLog(DEBUG, format, v...)
 	logCh <- event
 	print(event)

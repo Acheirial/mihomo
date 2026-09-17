@@ -57,6 +57,12 @@ func (o *Observable[T]) UnSubscribe(sub Subscription[T]) {
 	subscriber.Close()
 }
 
+func (o *Observable[T]) HasSubscribers() bool {
+	o.mux.Lock()
+	defer o.mux.Unlock()
+	return len(o.listener) > 0
+}
+
 func NewObservable[T any](iter Iterable[T]) *Observable[T] {
 	observable := &Observable[T]{
 		iterable: iter,

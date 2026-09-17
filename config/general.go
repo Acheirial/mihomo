@@ -215,9 +215,10 @@ func parseController(cfg *RawConfig) (*Controller, error) {
 
 func parseExperimental(cfg *RawConfig) (*Experimental, error) {
 	return &Experimental{
-		QUICGoDisableGSO: cfg.Experimental.QUICGoDisableGSO,
-		QUICGoDisableECN: cfg.Experimental.QUICGoDisableECN,
-		IP4PEnable:       cfg.Experimental.IP4PEnable,
+		QUICGoDisableGSO:          cfg.Experimental.QUICGoDisableGSO,
+		QUICGoDisableECN:          cfg.Experimental.QUICGoDisableECN,
+		IP4PEnable:                cfg.Experimental.IP4PEnable,
+		DisableConnectionTracking: cfg.Experimental.DisableConnectionTracking,
 	}, nil
 }
 

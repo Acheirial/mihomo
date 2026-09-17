@@ -82,9 +82,9 @@ func ParseWithBytes(buf []byte) (*config.Config, error) {
 }
 
 // ApplyConfig dispatch configure to all parts without ExternalController
+// Note: 包级全局 + 整表替换；热重载 = 全量 ApplyConfig。见 .agents/notes/implemented/architecture/2026-09-17-perf-parity.md
 func ApplyConfig(cfg *config.Config, force bool) {
 	mux.Lock()
-	defer mux.Unlock()
 	log.SetLevel(cfg.General.LogLevel)
 
 	tunnel.OnSuspend()
@@ -117,8 +117,9 @@ func ApplyConfig(cfg *config.Config, force bool) {
 	loadProvider(cfg.Providers)
 	updateProfile(cfg)
 	loadProvider(cfg.RuleProviders)
-	runtime.GC()
 	tunnel.OnRunning()
+	mux.Unlock()
+	runtime.GC()
 	updateUpdater(cfg)
 
 	resolver.ResetConnection()
@@ -214,6 +215,7 @@ func updateTun(general *config.General) {
 }
 
 func updateExperimental(c *config.Experimental) {
+	tunnel.SetTrackConnections(!c.DisableConnectionTracking)
 	if c.QUICGoDisableGSO {
 		_ = os.Setenv("QUIC_GO_DISABLE_GSO", strconv.FormatBool(true))
 	}

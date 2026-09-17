@@ -5,6 +5,7 @@ experimental:
   quic-go-disable-gso: false
   quic-go-disable-ecn: false
   dialer-ip4p-convert: false
+  disable-connection-tracking: false
 ```
 
 ## quic-go-disable-gso
@@ -18,3 +19,7 @@ experimental:
 ## dialer-ip4p-convert
 
 Включить преобразование адреса [IP4P](https://github.com/heiher/natmap/wiki/faq#域名访问是如何实现的) 
+
+## disable-connection-tracking
+
+Отключить отслеживание соединений (default `false`). При `true` REST `/connections` возвращает пустой список.

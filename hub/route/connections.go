@@ -6,6 +6,7 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/metacubex/mihomo/tunnel"
 	"github.com/metacubex/mihomo/tunnel/statistic"
 
 	"github.com/metacubex/chi"
@@ -13,6 +14,17 @@ import (
 	"github.com/metacubex/http"
 )
 
+type connectionSnapshot struct {
+	*statistic.Snapshot
+	UDPDropped int64 `json:"udp-dropped"`
+}
+
+func connectionsSnapshot() connectionSnapshot {
+	return connectionSnapshot{
+		Snapshot:   statistic.DefaultManager.Snapshot(),
+		UDPDropped: tunnel.UDPDropped(),
+	}
+}
 func connectionRouter() http.Handler {
 	r := chi.NewRouter()
 	r.Get("/", getConnections)
@@ -23,7 +35,7 @@ func connectionRouter() http.Handler {
 
 func getConnections(w http.ResponseWriter, r *http.Request) {
 	if !(r.Header.Get("Upgrade") == "websocket") {
-		snapshot := statistic.DefaultManager.Snapshot()
+		snapshot := connectionsSnapshot()
 		render.JSON(w, r, snapshot)
 		return
 	}
@@ -49,7 +61,7 @@ func getConnections(w http.ResponseWriter, r *http.Request) {
 	buf := &bytes.Buffer{}
 	sendSnapshot := func() error {
 		buf.Reset()
-		snapshot := statistic.DefaultManager.Snapshot()
+		snapshot := connectionsSnapshot()
 		if err := json.NewEncoder(buf).Encode(snapshot); err != nil {
 			return err
 		}

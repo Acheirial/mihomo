@@ -39,7 +39,10 @@ const (
 )
 
 var (
-	status        = atomic.NewInt32Enum(Suspend)
+	status           = atomic.NewInt32Enum(Suspend)
+	trackConnections = atomic.NewBool(true)
+	udpDropped       atomic.Int64
+
 	udpInit       sync.Once
 	udpQueues     []chan C.PacketAdapter
 	natTable      = nat.New()
@@ -110,6 +113,7 @@ func (t tunnel) HandleUDPPacket(packet C.UDPPacket, metadata *C.Metadata) {
 	select {
 	case udpQueues[queueNo] <- packetAdapter:
 	default:
+		udpDropped.Add(1)
 		packet.Drop()
 	}
 }
@@ -148,6 +152,14 @@ func OnRunning() {
 
 func Status() TunnelStatus {
 	return status.Load()
+}
+
+func SetTrackConnections(b bool) {
+	trackConnections.Store(b)
+}
+
+func UDPDropped() int64 {
+	return udpDropped.Load()
 }
 
 func SetSniffing(b bool) {
@@ -485,7 +497,7 @@ func handleUDPConn(packet C.PacketAdapter) {
 			}
 			logMetadata(metadata, rule, rawPc)
 
-			pc := statistic.NewUDPTracker(rawPc, statistic.DefaultManager, metadata, rule, 0, 0, true)
+			pc := statistic.NewUDPTracker(rawPc, statistic.DefaultManager, metadata, rule, 0, 0, trackConnections.Load())
 
 			sender.AddMapping(originMetadata, dialMetadata)
 			oAddrPort := dialMetadata.AddrPort()
@@ -639,7 +651,7 @@ func handleTCPConn(connCtx C.ConnContext) {
 	}
 	logMetadata(metadata, rule, remoteConn)
 
-	remoteConn = statistic.NewTCPTracker(remoteConn, statistic.DefaultManager, metadata, rule, int64(peekLen), 0, true)
+	remoteConn = statistic.NewTCPTracker(remoteConn, statistic.DefaultManager, metadata, rule, int64(peekLen), 0, trackConnections.Load())
 	defer func(remoteConn C.Conn) {
 		_ = remoteConn.Close()
 	}(remoteConn)
@@ -680,16 +692,18 @@ func logMetadata(metadata *C.Metadata, rule C.Rule, remoteConn C.Connection) {
 
 func match(metadata *C.Metadata, helper C.RuleMatchHelper) (C.Proxy, C.Rule, error) {
 	configMux.RLock()
-	defer configMux.RUnlock()
+	matchRules := getRules(metadata)
+	matchProxies := proxies
+	configMux.RUnlock()
 
 	var rematchChain []string
 	for {
 		var rematchProxy C.Proxy
 		var rematchRule C.Rule
 	GetRules:
-		for _, rule := range getRules(metadata) {
+		for _, rule := range matchRules {
 			if matched, ada := rule.Match(metadata, helper); matched {
-				adapter, ok := proxies[ada]
+				adapter, ok := matchProxies[ada]
 				if !ok {
 					continue
 				}
@@ -731,9 +745,13 @@ func match(metadata *C.Metadata, helper C.RuleMatchHelper) (C.Proxy, C.Rule, err
 				return rematchProxy, rematchRule, nil
 			}
 			log.Debugln("[Rule] rematch proxy %s update metadata to rematch-name=%q sub-rule=%q", rematchProxy.Name(), metadata.InName, metadata.SpecialRules)
+			configMux.RLock()
+			matchRules = getRules(metadata)
+			matchProxies = proxies
+			configMux.RUnlock()
 			continue
 		}
-		return proxies["DIRECT"], nil, nil
+		return matchProxies["DIRECT"], nil, nil
 	}
 }
 

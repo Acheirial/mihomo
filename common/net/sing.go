@@ -5,6 +5,7 @@ import (
 	"net"
 
 	"github.com/metacubex/mihomo/common/net/deadline"
+	"github.com/metacubex/mihomo/common/pool"
 
 	"github.com/metacubex/sing/common"
 	"github.com/metacubex/sing/common/bufio"
@@ -74,7 +75,7 @@ func Relay(leftConn, rightConn net.Conn) {
 
 	ch := make(chan struct{})
 	go func() {
-		_, err := bufio.Copy(leftConn, rightConn)
+		_, err := copyWithIncrease(leftConn, rightConn)
 		if err == nil {
 			_ = closeWrite(leftConn)
 		} else {
@@ -83,11 +84,46 @@ func Relay(leftConn, rightConn net.Conn) {
 		close(ch)
 	}()
 
-	_, err := bufio.Copy(rightConn, leftConn)
+	_, err := copyWithIncrease(rightConn, leftConn)
 	if err == nil {
 		_ = closeWrite(rightConn)
 	} else {
 		_ = rightConn.Close()
 	}
 	<-ch
+}
+
+const copyIncreaseThreshold = 512 * 1024
+
+func copyWithIncrease(dst io.Writer, src io.Reader) (int64, error) {
+	n := pool.RelayBufferSize
+	var written int64
+	for {
+		buf := pool.Get(n)
+		nr, er := src.Read(buf)
+		if nr > 0 {
+			nw, ew := dst.Write(buf[:nr])
+			if nw > 0 {
+				written += int64(nw)
+				if n == pool.RelayBufferSize && written > copyIncreaseThreshold {
+					n = 65535
+				}
+			}
+			if ew != nil {
+				pool.Put(buf)
+				return written, ew
+			}
+			if nr != nw {
+				pool.Put(buf)
+				return written, io.ErrShortWrite
+			}
+		}
+		pool.Put(buf)
+		if er != nil {
+			if er == io.EOF {
+				return written, nil
+			}
+			return written, er
+		}
+	}
 }

@@ -39,6 +39,7 @@ type tcpTracker struct {
 	manager *Manager
 
 	pushToManager bool `json:"-"`
+	joined        bool `json:"-"`
 }
 
 func (tt *tcpTracker) ID() string {
@@ -108,7 +109,9 @@ func (tt *tcpTracker) UnwrapWriter() (io.Writer, []N.CountFunc) {
 }
 
 func (tt *tcpTracker) Close() error {
-	tt.manager.Leave(tt)
+	if tt.joined {
+		tt.manager.Leave(tt)
+	}
 	return tt.Conn.Close()
 }
 
@@ -149,7 +152,10 @@ func NewTCPTracker(conn C.Conn, manager *Manager, metadata *C.Metadata, rule C.R
 		t.TrackerInfo.RulePayload = rule.Payload()
 	}
 
-	manager.Join(t)
+	if pushToManager {
+		manager.Join(t)
+		t.joined = true
+	}
 	return t
 }
 
@@ -159,6 +165,7 @@ type udpTracker struct {
 	manager *Manager
 
 	pushToManager bool `json:"-"`
+	joined        bool `json:"-"`
 }
 
 func (ut *udpTracker) ID() string {
@@ -200,7 +207,9 @@ func (ut *udpTracker) WriteTo(b []byte, addr net.Addr) (int, error) {
 }
 
 func (ut *udpTracker) Close() error {
-	ut.manager.Leave(ut)
+	if ut.joined {
+		ut.manager.Leave(ut)
+	}
 	return ut.PacketConn.Close()
 }
 
@@ -241,6 +250,9 @@ func NewUDPTracker(conn C.PacketConn, manager *Manager, metadata *C.Metadata, ru
 		ut.TrackerInfo.RulePayload = rule.Payload()
 	}
 
-	manager.Join(ut)
+	if pushToManager {
+		manager.Join(ut)
+		ut.joined = true
+	}
 	return ut
 }

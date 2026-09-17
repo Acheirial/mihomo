@@ -14,11 +14,16 @@ import (
 	D "github.com/miekg/dns"
 )
 
+type contextDialer interface {
+	DialContext(ctx context.Context, network, address string) (net.Conn, error)
+}
+
 type client struct {
 	port   string
 	host   string
-	dialer *dnsDialer
+	dialer contextDialer
 	schema string
+	pool   udpConnPool
 }
 
 var _ dnsClient = (*client)(nil)
@@ -35,17 +40,41 @@ func (c *client) ExchangeContext(ctx context.Context, m *D.Msg) (*D.Msg, error) 
 	}
 
 	addr := net.JoinHostPort(c.host, c.port)
-	conn, err := c.dialer.DialContext(ctx, network, addr)
+	dial := func(ctx context.Context) (net.Conn, error) {
+		return c.dialer.DialContext(ctx, network, addr)
+	}
+
+	var conn net.Conn
+	var err error
+	if c.schema == "udp" {
+		conn, err = c.pool.Acquire(ctx, dial)
+	} else {
+		conn, err = dial(ctx)
+	}
 	if err != nil {
 		return nil, err
 	}
-	defer conn.Close()
+
+	reuse := c.schema == "udp"
+	defer func() {
+		if reuse {
+			c.pool.Release(conn, true)
+			return
+		}
+		if c.schema == "udp" {
+			c.pool.Release(conn, false)
+			return
+		}
+		_ = conn.Close()
+	}()
 
 	// miekg/dns ExchangeContext doesn't respond to context cancel.
 	// this is a workaround
 	type result struct {
-		msg *D.Msg
-		err error
+		msg     *D.Msg
+		err     error
+		tcpConn net.Conn
+		dropUDP bool
 	}
 	ch := make(chan result, 1)
 	go func() {
@@ -67,26 +96,37 @@ func (c *client) ExchangeContext(ctx context.Context, m *D.Msg) (*D.Msg, error) 
 			var tcpConn net.Conn
 			tcpConn, err = c.dialer.DialContext(ctx, network, addr)
 			if err != nil {
-				ch <- result{msg, err}
+				ch <- result{msg: msg, err: err, dropUDP: true}
 				return
 			}
-			defer tcpConn.Close()
 			dConn.Conn = tcpConn
 			msg, _, err = dClient.ExchangeWithConn(m, dConn)
+			ch <- result{msg: msg, err: err, tcpConn: tcpConn, dropUDP: true}
+			return
 		}
 
-		ch <- result{msg, err}
+		ch <- result{msg: msg, err: err}
 	}()
 
 	select {
 	case <-ctx.Done():
+		reuse = false
 		return nil, ctx.Err()
 	case ret := <-ch:
-		return ret.msg, ret.err
+		if ret.tcpConn != nil {
+			_ = ret.tcpConn.Close()
+		}
+		if ret.err != nil || ret.dropUDP {
+			reuse = false
+			return ret.msg, ret.err
+		}
+		return ret.msg, nil
 	}
 }
 
-func (c *client) ResetConnection() {}
+func (c *client) ResetConnection() {
+	c.pool.Close()
+}
 
 func newClient(addr string, resolver resolver.Resolver, netType string, params map[string]string, proxyAdapter C.ProxyAdapter, proxyName string) *client {
 	host, port, _ := net.SplitHostPort(addr)
