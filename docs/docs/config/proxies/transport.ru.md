@@ -1,5 +1,8 @@
 # Конфигурация транспортного уровня
 
+!!! note
+    Значения `network` можно свободно комбинировать с VMess, VLESS и Trojan: `tcp`/`ws`/`http`/`h2`/`grpc`/`xhttp`/`mkcp`/`mekya`. `httpupgrade` рассматривается как `ws` плюс HTTP Upgrade. Shadowsocks / Snell по-прежнему используют `plugin` / `obfs-opts`; не задавайте эти транспорты на узлах SS.
+
 === "http"
     ```{.yaml linenums="1"}
     proxies:
@@ -279,7 +282,7 @@ gRPC UserAgent
 
 ### ws-opts.v2ray-http-upgrade
 
-Использовать HTTP upgrade
+Использовать HTTP upgrade. `network: httpupgrade` нормализуется в `ws` и включает этот параметр.
 
 ### ws-opts.v2ray-http-upgrade-fast-open
 
@@ -290,7 +293,7 @@ gRPC UserAgent
 Настройки транспортного уровня `mkcp`, действуют только когда транспортный уровень — `mkcp`.
 
 !!! note
-    Транспортный уровень mKCP поддерживается только VMess. Не используйте его с другими протоколами.
+    mKCP можно использовать с VMess, VLESS и Trojan. Для Shadowsocks по-прежнему используйте `plugin`.
 
 ### mkcp-opts.mtu
 
@@ -333,7 +336,7 @@ Seed для аутентификации AES-GCM. Оставьте пустым 
 Настройки транспортного уровня `mekya`, действуют только когда транспортный уровень — `mekya`.
 
 !!! note
-    Транспортный уровень Mekya поддерживается только VMess. Не используйте его с другими протоколами.
+    Mekya можно использовать с VMess, VLESS и Trojan. Для Shadowsocks по-прежнему используйте `plugin`.
 
 ### mekya-opts.url
 
@@ -366,7 +369,7 @@ URL сервера Mekya.
 По умолчанию поддерживается только режим h2. Чтобы включить режим h3, необходимо установить параметр alpn: [h3]; чтобы включить режим HTTP/1.1, необходимо установить параметр alpn: [http/1.1].
 
 !!! note
-    Транспортный уровень xhttp поддерживается только VLESS. Не используйте его с другими протоколами.
+    xhttp можно использовать с VMess, VLESS и Trojan. Для Shadowsocks по-прежнему используйте `plugin`.
 
 ### xhttp-opts.path
 

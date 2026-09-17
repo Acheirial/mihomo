@@ -19,7 +19,6 @@ import (
 	"github.com/metacubex/mihomo/common/buf"
 	N "github.com/metacubex/mihomo/common/net"
 	"github.com/metacubex/mihomo/component/ech"
-	tlsC "github.com/metacubex/mihomo/component/tls"
 	"github.com/metacubex/mihomo/log"
 
 	"github.com/gobwas/ws"
@@ -353,42 +352,6 @@ func streamWebsocketConn(ctx context.Context, conn net.Conn, c *WebsocketConfig,
 
 	if c.TLS {
 		uri.Scheme = "wss"
-		config := c.TLSConfig
-		if config == nil { // The config cannot be nil
-			config = &tls.Config{NextProtos: []string{"http/1.1"}}
-		}
-		if config.ServerName == "" && !config.InsecureSkipVerify { // users must set either ServerName or InsecureSkipVerify in the config.
-			config = config.Clone()
-			config.ServerName = c.Host
-		}
-
-		if clientFingerprint, ok := tlsC.GetFingerprint(c.ClientFingerprint); ok {
-			tlsConfig := tlsC.UConfig(config)
-			err = c.ECHConfig.ClientHandleUTLS(ctx, tlsConfig)
-			if err != nil {
-				return nil, err
-			}
-			tlsConn := tlsC.UClient(conn, tlsConfig, clientFingerprint)
-			if err = tlsC.BuildWebsocketHandshakeState(tlsConn); err != nil {
-				return nil, fmt.Errorf("parse url %s error: %w", c.Path, err)
-			}
-			err = tlsConn.HandshakeContext(ctx)
-			if err != nil {
-				return nil, err
-			}
-			conn = tlsConn
-		} else {
-			err = c.ECHConfig.ClientHandle(ctx, config)
-			if err != nil {
-				return nil, err
-			}
-			tlsConn := tls.Client(conn, config)
-			err = tlsConn.HandshakeContext(ctx)
-			if err != nil {
-				return nil, err
-			}
-			conn = tlsConn
-		}
 	}
 
 	request := &http.Request{

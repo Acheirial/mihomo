@@ -64,6 +64,6 @@ trojan-go 的 shadowsocks AEAD 加密密码
 
 ## network
 
-传输层，支持 ws/grpc，不配置或配置其他值则为 tcp
+传输层，支持 `tcp`/`ws`/`http`/`h2`/`grpc`/`xhttp`/`mkcp`/`mekya`。`httpupgrade` 视为 `ws` + HTTP Upgrade。不配置或配置其他值则为 tcp；未配置 `network` 时仍强制 TLS
 
 参阅 [传输层配置](./transport.md)

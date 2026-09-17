@@ -2,10 +2,8 @@ package outbound
 
 import (
 	"context"
-	"errors"
 	"net"
 	"strconv"
-	"strings"
 	"time"
 
 	N "github.com/metacubex/mihomo/common/net"
@@ -137,18 +135,8 @@ func NewAnyTLS(option AnyTLSOption) (*AnyTLS, error) {
 	if err != nil {
 		return nil, err
 	}
-	securityModes := make([]string, 0, 3)
-	if shadowTLSConfig != nil {
-		securityModes = append(securityModes, "ShadowTLS")
-	}
-	if restlsConfig != nil {
-		securityModes = append(securityModes, "Restls")
-	}
-	if jlsConfig != nil {
-		securityModes = append(securityModes, "JLS")
-	}
-	if len(securityModes) > 1 {
-		return nil, errors.New("security modes are mutually exclusive: " + strings.Join(securityModes, ", "))
+	if _, err := checkExclusiveSecurityModes(collectSecurityModes(shadowTLSConfig, restlsConfig, jlsConfig, nil, false)); err != nil {
+		return nil, err
 	}
 	tlsConfig := &vmess.TLSConfig{
 		Host:              option.SNI,

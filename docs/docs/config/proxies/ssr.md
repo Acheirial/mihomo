@@ -1,5 +1,8 @@
 # ShadowsocksR
 
+!!! note
+    遗留协议。现有 `type: ssr` 配置继续可用，与 Shadowsocks（`type: ss`）不是同一协议，不要互相 alias。
+
 ```{.yaml linenums="1"}
 proxies:
   - name: "ssr"

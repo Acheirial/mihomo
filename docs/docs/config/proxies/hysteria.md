@@ -1,5 +1,8 @@
 # Hysteria
 
+!!! note
+    遗留协议（Hysteria 1）。现有 `type: hysteria` 配置继续可用，与 Hysteria2（`type: hysteria2`）不是同一协议，不要互相 alias。
+
 ```{.yaml linenums="1"}
 proxies:
 - name: "hysteria"

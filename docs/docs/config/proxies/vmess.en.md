@@ -74,6 +74,6 @@ Protocol parameter. Enables encrypted length blocks.
 
 ## network
 
-Transport layer. Supports `ws`/`http`/`h2`/`grpc`/`mkcp`/`mekya`. If unset or set to another value, TCP is used.
+Transport layer. Supports `tcp`/`ws`/`http`/`h2`/`grpc`/`xhttp`/`mkcp`/`mekya`. `httpupgrade` is treated as `ws` plus HTTP Upgrade. If unset or set to another value, TCP is used.
 
 See [Transport configuration](./transport.md).

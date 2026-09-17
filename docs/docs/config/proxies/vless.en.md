@@ -81,6 +81,6 @@ Padding is optional and only applies to 1-RTT to remove handshake length charact
 
 ## network
 
-Transport layer. Supports `ws`/`http`/`h2`/`grpc`/`xhttp`. If unset or set to another value, TCP is used.
+Transport layer. Supports `tcp`/`ws`/`http`/`h2`/`grpc`/`xhttp`/`mkcp`/`mekya`. `httpupgrade` is treated as `ws` plus HTTP Upgrade. If unset or set to another value, TCP is used.
 
 See [Transport configuration](./transport.md).

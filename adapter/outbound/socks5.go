@@ -10,21 +10,18 @@ import (
 	"strconv"
 
 	N "github.com/metacubex/mihomo/common/net"
-	"github.com/metacubex/mihomo/component/ca"
 	C "github.com/metacubex/mihomo/constant"
 	"github.com/metacubex/mihomo/transport/socks5"
-
-	"github.com/metacubex/tls"
+	vmess "github.com/metacubex/mihomo/transport/vmess"
 )
 
 type Socks5 struct {
 	*Base
-	option         *Socks5Option
-	user           string
-	pass           string
-	tls            bool
-	skipCertVerify bool
-	tlsConfig      *tls.Config
+	option    *Socks5Option
+	user      string
+	pass      string
+	tls       bool
+	tlsConfig *vmess.TLSConfig
 }
 
 type Socks5Option struct {
@@ -43,12 +40,10 @@ type Socks5Option struct {
 	PrivateKey     string `proxy:"private-key,omitempty"`
 }
 
-// StreamConnContext implements C.ProxyAdapter
 func (ss *Socks5) StreamConnContext(ctx context.Context, c net.Conn, metadata *C.Metadata) (net.Conn, error) {
 	if ss.tls {
-		cc := tls.Client(c, ss.tlsConfig)
-		err := cc.HandshakeContext(ctx)
-		c = cc
+		var err error
+		c, err = vmess.StreamTLSConn(ctx, c, ss.tlsConfig)
 		if err != nil {
 			return nil, fmt.Errorf("%s connect error: %w", ss.addr, err)
 		}
@@ -102,12 +97,10 @@ func (ss *Socks5) ListenPacketContext(ctx context.Context, metadata *C.Metadata)
 	}(c)
 
 	if ss.tls {
-		cc := tls.Client(c, ss.tlsConfig)
-		err = cc.HandshakeContext(ctx)
+		c, err = vmess.StreamTLSConn(ctx, c, ss.tlsConfig)
 		if err != nil {
 			return nil, fmt.Errorf("%s connect error: %w", ss.addr, err)
 		}
-		c = cc
 	}
 
 	var user *socks5.User
@@ -171,21 +164,15 @@ func (ss *Socks5) clientHandshakeContext(ctx context.Context, c net.Conn, addr s
 }
 
 func NewSocks5(option Socks5Option) (*Socks5, error) {
-	var tlsConfig *tls.Config
+	var tlsConfig *vmess.TLSConfig
 	if option.TLS {
-		var err error
-		tlsConfig, err = ca.GetTLSConfig(ca.Option{
-			TLSConfig: &tls.Config{
-				InsecureSkipVerify: option.SkipCertVerify,
-				ServerName:         option.Server,
-			},
-			Fingerprint:    option.Fingerprint,
+		tlsConfig = &vmess.TLSConfig{
+			Host:           option.Server,
+			SkipCertVerify: option.SkipCertVerify,
 			NameCertVerify: option.NameCertVerify,
+			FingerPrint:    option.Fingerprint,
 			Certificate:    option.Certificate,
 			PrivateKey:     option.PrivateKey,
-		})
-		if err != nil {
-			return nil, err
 		}
 	}
 
@@ -202,12 +189,11 @@ func NewSocks5(option Socks5Option) (*Socks5, error) {
 			RoutingMark:  option.RoutingMark,
 			Prefer:       option.IPVersion,
 		}),
-		option:         &option,
-		user:           option.UserName,
-		pass:           option.Password,
-		tls:            option.TLS,
-		skipCertVerify: option.SkipCertVerify,
-		tlsConfig:      tlsConfig,
+		option:    &option,
+		user:      option.UserName,
+		pass:      option.Password,
+		tls:       option.TLS,
+		tlsConfig: tlsConfig,
 	}
 	outbound.dialer = option.NewDialer(outbound.DialOptions())
 	return outbound, nil

@@ -74,8 +74,12 @@ func handleVShareLink(names map[string]int, url *url.URL, scheme string, proxy m
 	} else if network == "http" {
 		network = "h2"
 	}
+	rawNetwork := network
+	if network == "httpupgrade" {
+		network = "ws"
+	}
 	proxy["network"] = network
-	switch network {
+	switch rawNetwork {
 	case "tcp":
 	case "http":
 		headers := make(map[string]any)
@@ -114,13 +118,16 @@ func handleVShareLink(names map[string]int, url *url.URL, scheme string, proxy m
 		headers["Host"] = query.Get("host")
 		wsOpts["path"] = query.Get("path")
 		wsOpts["headers"] = headers
+		if rawNetwork == "httpupgrade" {
+			wsOpts["v2ray-http-upgrade"] = true
+		}
 
 		if earlyData := query.Get("ed"); earlyData != "" {
 			med, err := strconv.Atoi(earlyData)
 			if err != nil {
 				return fmt.Errorf("bad WebSocket max early data size: %v", err)
 			}
-			switch network {
+			switch rawNetwork {
 			case "ws":
 				wsOpts["max-early-data"] = med
 				wsOpts["early-data-header-name"] = "Sec-WebSocket-Protocol"

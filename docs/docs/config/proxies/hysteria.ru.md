@@ -1,5 +1,8 @@
 # Hysteria
 
+!!! note
+    Устаревший протокол (Hysteria 1). Существующие конфигурации `type: hysteria` по-прежнему работают. Это не тот же протокол, что Hysteria2 (`type: hysteria2`); не делайте взаимный alias.
+
 ```{.yaml linenums="1"}
 proxies:
 - name: "hysteria"

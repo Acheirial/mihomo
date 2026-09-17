@@ -1,5 +1,8 @@
 # Transport Configuration
 
+!!! note
+    These `network` values can be composed with VMess, VLESS, and Trojan: `tcp`/`ws`/`http`/`h2`/`grpc`/`xhttp`/`mkcp`/`mekya`. `httpupgrade` is treated as `ws` plus HTTP Upgrade. Shadowsocks / Snell still use `plugin` / `obfs-opts`; do not set these transports on SS nodes.
+
 === "http"
     ```{.yaml linenums="1"}
     proxies:
@@ -279,7 +282,7 @@ Early Data first-packet length threshold.
 
 ### ws-opts.v2ray-http-upgrade
 
-Use HTTP upgrade.
+Use HTTP upgrade. `network: httpupgrade` is normalized to `ws` and enables this option.
 
 ### ws-opts.v2ray-http-upgrade-fast-open
 
@@ -290,7 +293,7 @@ Enable fast open for HTTP upgrade.
 `mkcp` transport settings. Only effective when the transport layer is `mkcp`.
 
 !!! note
-    Only VMess supports the mKCP transport layer. Do not use it with other protocols.
+    VMess, VLESS, and Trojan can all use the mKCP transport. Shadowsocks should continue using `plugin`.
 
 ### mkcp-opts.mtu
 
@@ -333,7 +336,7 @@ Packet header camouflage. Available values: `none`/`srtp`/`utp`/`wechat-video`/`
 `mekya` transport settings. Only effective when the transport layer is `mekya`.
 
 !!! note
-    Only VMess supports the Mekya transport layer. Do not use it with other protocols.
+    VMess, VLESS, and Trojan can all use the Mekya transport. Shadowsocks should continue using `plugin`.
 
 ### mekya-opts.url
 
@@ -366,7 +369,7 @@ Internal KCP parameters for Mekya. The fields are the same as [mkcp-opts](#mkcp-
 By default, only h2 is supported. To enable h3 mode, set `alpn: [h3]`. To enable HTTP/1.1 mode, set `alpn: [http/1.1]`.
 
 !!! note
-    Only VLESS supports the xhttp transport layer. Do not use it with other protocols.
+    VMess, VLESS, and Trojan can all use the xhttp transport. Shadowsocks should continue using `plugin`.
 
 ### xhttp-opts.path
 

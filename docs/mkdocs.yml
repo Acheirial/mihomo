@@ -275,6 +275,7 @@ nav:
       - Rematch: config/proxies/rematch.md
       - HTTP: config/proxies/http.md
       - SOCKS: config/proxies/socks.md
+      - Gost Relay: config/proxies/gost-relay.md
       - Shadowsocks: config/proxies/ss.md
       - ShadowsocksR: config/proxies/ssr.md
       - Snell: config/proxies/snell.md

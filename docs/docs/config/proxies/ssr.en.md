@@ -1,5 +1,8 @@
 # ShadowsocksR
 
+!!! note
+    Legacy protocol. Existing `type: ssr` configs remain valid. This is not the same protocol as Shadowsocks (`type: ss`); do not alias them to each other.
+
 ```{.yaml linenums="1"}
 proxies:
   - name: "ssr"

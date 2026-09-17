@@ -6,40 +6,19 @@ import (
 	"fmt"
 	"net"
 	"strconv"
-	"strings"
 
 	N "github.com/metacubex/mihomo/common/net"
-	"github.com/metacubex/mihomo/component/ca"
-	"github.com/metacubex/mihomo/component/ech"
-	tlsC "github.com/metacubex/mihomo/component/tls"
 	C "github.com/metacubex/mihomo/constant"
-	"github.com/metacubex/mihomo/transport/gun"
-	"github.com/metacubex/mihomo/transport/jls"
-	"github.com/metacubex/mihomo/transport/restls"
 	"github.com/metacubex/mihomo/transport/shadowsocks/core"
-	"github.com/metacubex/mihomo/transport/shadowtls"
 	"github.com/metacubex/mihomo/transport/trojan"
-	"github.com/metacubex/mihomo/transport/vmess"
-
-	"github.com/metacubex/http"
-	"github.com/metacubex/tls"
 )
 
 type Trojan struct {
 	*Base
 	option      *TrojanOption
 	hexPassword [trojan.KeyLength]byte
-
-	// for gun mux
-	gunClient *gun.Client
-
-	echConfig       *ech.Config
-	shadowTLSConfig *shadowtls.Config
-	restlsConfig    *restls.Config
-	jlsConfig       *jls.Config
-	realityConfig   *tlsC.RealityConfig
-
-	ssCipher core.Cipher
+	ssCipher    core.Cipher
+	stack       *StreamStack
 }
 
 type TrojanOption struct {
@@ -64,6 +43,11 @@ type TrojanOption struct {
 	RealityOpts       RealityOptions   `proxy:"reality-opts,omitempty"`
 	GrpcOpts          GrpcOptions      `proxy:"grpc-opts,omitempty"`
 	WSOpts            WSOptions        `proxy:"ws-opts,omitempty"`
+	HTTPOpts          HTTPOptions      `proxy:"http-opts,omitempty"`
+	HTTP2Opts         HTTP2Options     `proxy:"h2-opts,omitempty"`
+	XHTTPOpts         XHTTPOptions     `proxy:"xhttp-opts,omitempty"`
+	MKCPOpts          MKCPOptions      `proxy:"mkcp-opts,omitempty"`
+	MekyaOpts         MekyaOptions     `proxy:"mekya-opts,omitempty"`
 	SSOpts            TrojanSSOption   `proxy:"ss-opts,omitempty"`
 	ClientFingerprint string           `proxy:"client-fingerprint,omitempty"`
 }
@@ -76,104 +60,10 @@ type TrojanSSOption struct {
 }
 
 func (t *Trojan) StreamConnContext(ctx context.Context, c net.Conn, metadata *C.Metadata) (_ net.Conn, err error) {
-	switch t.option.Network {
-	case "ws":
-		host, port, _ := net.SplitHostPort(t.addr)
-
-		wsOpts := &vmess.WebsocketConfig{
-			Host:                     host,
-			Port:                     port,
-			Path:                     t.option.WSOpts.Path,
-			MaxEarlyData:             t.option.WSOpts.MaxEarlyData,
-			EarlyDataHeaderName:      t.option.WSOpts.EarlyDataHeaderName,
-			V2rayHttpUpgrade:         t.option.WSOpts.V2rayHttpUpgrade,
-			V2rayHttpUpgradeFastOpen: t.option.WSOpts.V2rayHttpUpgradeFastOpen,
-			ClientFingerprint:        t.option.ClientFingerprint,
-			ECHConfig:                t.echConfig,
-			Headers:                  http.Header{},
-		}
-
-		if t.option.SNI != "" {
-			wsOpts.Host = t.option.SNI
-		}
-
-		if len(t.option.WSOpts.Headers) != 0 {
-			for key, value := range t.option.WSOpts.Headers {
-				wsOpts.Headers.Add(key, value)
-			}
-		}
-
-		alpn := trojan.DefaultWebsocketALPN
-		if t.option.ALPN != nil { // structure's Decode will ensure value not nil when input has value even it was set an empty array
-			alpn = t.option.ALPN
-		}
-
-		if t.shadowTLSConfig != nil || t.restlsConfig != nil || t.jlsConfig != nil {
-			c, err = vmess.StreamTLSConn(ctx, c, &vmess.TLSConfig{
-				Host:              t.option.SNI,
-				SkipCertVerify:    t.option.SkipCertVerify,
-				NameCertVerify:    t.option.NameCertVerify,
-				FingerPrint:       t.option.Fingerprint,
-				Certificate:       t.option.Certificate,
-				PrivateKey:        t.option.PrivateKey,
-				ClientFingerprint: t.option.ClientFingerprint,
-				NextProtos:        []string{"http/1.1"},
-				ShadowTLS:         t.shadowTLSConfig,
-				Restls:            t.restlsConfig,
-				JLS:               t.jlsConfig,
-			})
-			if err != nil {
-				return nil, err
-			}
-		} else {
-			wsOpts.TLS = true
-			wsOpts.TLSConfig, err = ca.GetTLSConfig(ca.Option{
-				TLSConfig: &tls.Config{
-					NextProtos:         alpn,
-					MinVersion:         tls.VersionTLS12,
-					InsecureSkipVerify: t.option.SkipCertVerify,
-					ServerName:         t.option.SNI,
-				},
-				Fingerprint:    t.option.Fingerprint,
-				NameCertVerify: t.option.NameCertVerify,
-				Certificate:    t.option.Certificate,
-				PrivateKey:     t.option.PrivateKey,
-			})
-			if err != nil {
-				return nil, err
-			}
-		}
-
-		c, err = vmess.StreamWebsocketConn(ctx, c, wsOpts)
-	case "grpc":
-		break // already handle in dialContext
-	default:
-		// default tcp network
-		// handle TLS
-		alpn := trojan.DefaultALPN
-		if t.option.ALPN != nil { // structure's Decode will ensure value not nil when input has value even it was set an empty array
-			alpn = t.option.ALPN
-		}
-		c, err = vmess.StreamTLSConn(ctx, c, &vmess.TLSConfig{
-			Host:              t.option.SNI,
-			SkipCertVerify:    t.option.SkipCertVerify,
-			NameCertVerify:    t.option.NameCertVerify,
-			FingerPrint:       t.option.Fingerprint,
-			Certificate:       t.option.Certificate,
-			PrivateKey:        t.option.PrivateKey,
-			ClientFingerprint: t.option.ClientFingerprint,
-			NextProtos:        alpn,
-			ECH:               t.echConfig,
-			ShadowTLS:         t.shadowTLSConfig,
-			Restls:            t.restlsConfig,
-			JLS:               t.jlsConfig,
-			Reality:           t.realityConfig,
-		})
-	}
+	c, err = t.stack.Wrap(ctx, c)
 	if err != nil {
 		return nil, err
 	}
-
 	return t.streamConnContext(ctx, c, metadata)
 }
 
@@ -208,12 +98,7 @@ func (t *Trojan) writeHeaderContext(ctx context.Context, c net.Conn, metadata *C
 }
 
 func (t *Trojan) dialContext(ctx context.Context) (c net.Conn, err error) {
-	switch t.option.Network {
-	case "grpc": // gun transport
-		return t.gunClient.Dial()
-	default:
-	}
-	return t.dialer.DialContext(ctx, "tcp", t.addr)
+	return t.stack.Dial(ctx)
 }
 
 // DialContext implements C.ProxyAdapter
@@ -269,15 +154,11 @@ func (t *Trojan) ProxyInfo() C.ProxyInfo {
 	return info
 }
 
-// Close implements C.ProxyAdapter
 func (t *Trojan) Close() error {
-	var errs []error
-	if t.gunClient != nil {
-		if err := t.gunClient.Close(); err != nil {
-			errs = append(errs, err)
-		}
+	if t.stack != nil {
+		return t.stack.Close()
 	}
-	return errors.Join(errs...)
+	return nil
 }
 
 func NewTrojan(option TrojanOption) (*Trojan, error) {
@@ -305,42 +186,29 @@ func NewTrojan(option TrojanOption) (*Trojan, error) {
 	}
 	t.dialer = option.NewDialer(t.DialOptions())
 
-	var err error
-	t.echConfig, err = option.ECHOpts.Parse()
+	echConfig, err := option.ECHOpts.Parse()
 	if err != nil {
 		return nil, err
 	}
-	t.shadowTLSConfig, err = option.ShadowTLSOpts.Parse()
+	shadowTLSConfig, err := option.ShadowTLSOpts.Parse()
 	if err != nil {
 		return nil, err
 	}
-	t.restlsConfig, err = option.RestlsOpts.Parse(option.SNI, option.ClientFingerprint)
+	restlsConfig, err := option.RestlsOpts.Parse(option.SNI, option.ClientFingerprint)
 	if err != nil {
 		return nil, err
 	}
-	t.jlsConfig, err = option.JLSOpts.Parse()
+	jlsConfig, err := option.JLSOpts.Parse()
 	if err != nil {
 		return nil, err
 	}
-	t.realityConfig, err = option.RealityOpts.Parse()
+	realityConfig, err := option.RealityOpts.Parse()
 	if err != nil {
 		return nil, err
 	}
-	securityModes := make([]string, 0, 4)
-	if t.shadowTLSConfig != nil {
-		securityModes = append(securityModes, "ShadowTLS")
-	}
-	if t.restlsConfig != nil {
-		securityModes = append(securityModes, "Restls")
-	}
-	if t.jlsConfig != nil {
-		securityModes = append(securityModes, "JLS")
-	}
-	if t.realityConfig != nil {
-		securityModes = append(securityModes, "REALITY")
-	}
-	if len(securityModes) > 1 {
-		return nil, errors.New("security modes are mutually exclusive: " + strings.Join(securityModes, ", "))
+	securityMode, err := checkExclusiveSecurityModes(collectSecurityModes(shadowTLSConfig, restlsConfig, jlsConfig, realityConfig, false))
+	if err != nil {
+		return nil, err
 	}
 
 	if option.SSOpts.Enabled {
@@ -357,47 +225,51 @@ func NewTrojan(option TrojanOption) (*Trojan, error) {
 		t.ssCipher = ciph
 	}
 
-	if option.Network == "grpc" {
-		dialFn := func(ctx context.Context, network, addr string) (net.Conn, error) {
-			c, err := t.dialer.DialContext(ctx, "tcp", t.addr)
-			if err != nil {
-				return nil, fmt.Errorf("%s connect error: %s", t.addr, err.Error())
-			}
-			return c, nil
-		}
-
-		tlsConfig := &vmess.TLSConfig{
-			Host:              option.SNI,
-			SkipCertVerify:    option.SkipCertVerify,
-			NameCertVerify:    option.NameCertVerify,
-			FingerPrint:       option.Fingerprint,
-			Certificate:       option.Certificate,
-			PrivateKey:        option.PrivateKey,
-			ClientFingerprint: option.ClientFingerprint,
-			NextProtos:        []string{"h2"},
-			ECH:               t.echConfig,
-			ShadowTLS:         t.shadowTLSConfig,
-			Restls:            t.restlsConfig,
-			JLS:               t.jlsConfig,
-			Reality:           t.realityConfig,
-		}
-
-		gunConfig := &gun.Config{
-			ServiceName:  option.GrpcOpts.GrpcServiceName,
-			UserAgent:    option.GrpcOpts.GrpcUserAgent,
-			Host:         option.SNI,
-			PingInterval: option.GrpcOpts.PingInterval,
-		}
-
-		t.gunClient = gun.NewClient(
-			func() *gun.Transport {
-				return gun.NewTransport(dialFn, tlsConfig, gunConfig)
-			},
-			option.GrpcOpts.MaxConnections,
-			option.GrpcOpts.MinStreams,
-			option.GrpcOpts.MaxStreams,
-		)
+	alpn := option.ALPN
+	wsALPN := trojan.DefaultWebsocketALPN
+	if option.ALPN != nil {
+		wsALPN = option.ALPN
+	} else {
+		alpn = trojan.DefaultALPN
 	}
+	t.stack, err = NewStreamStack(StreamStackOption{
+		Dialer:            t.dialer,
+		Addr:              t.addr,
+		Server:            option.Server,
+		Port:              option.Port,
+		Network:           option.Network,
+		TLS:               true,
+		ForceTLS:          true,
+		ALPN:              alpn,
+		SkipCertVerify:    option.SkipCertVerify,
+		NameCertVerify:    option.NameCertVerify,
+		Fingerprint:       option.Fingerprint,
+		Certificate:       option.Certificate,
+		PrivateKey:        option.PrivateKey,
+		ServerName:        option.SNI,
+		ClientFingerprint: option.ClientFingerprint,
+		ECH:               echConfig,
+		ShadowTLS:         shadowTLSConfig,
+		Restls:            restlsConfig,
+		JLS:               jlsConfig,
+		Reality:           realityConfig,
+		SecurityMode:      securityMode,
+		WS:                option.WSOpts,
+		HTTP:              option.HTTPOpts,
+		H2:                option.HTTP2Opts,
+		Grpc:              option.GrpcOpts,
+		XHTTP:             option.XHTTPOpts,
+		MKCP:              option.MKCPOpts,
+		Mekya:             option.MekyaOpts,
+		DialOptions:       t.DialOptions(),
+		WSHost:            option.SNI,
+		DefaultALPN:       trojan.DefaultALPN,
+		DefaultWSALPN:     wsALPN,
+	})
+	if err != nil {
+		return nil, err
+	}
+	option.Network = t.stack.Network()
 
 	return t, nil
 }

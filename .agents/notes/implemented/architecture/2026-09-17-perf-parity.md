@@ -11,7 +11,7 @@ Status: implemented
 3. `match()` 全程 `configMux.RLock()`；UDP 64 槽满则静默 `packet.Drop()`。
 4. 包级全局 + `ApplyConfig` 一把 `mux` 覆盖 provider `Initial()` 和 `runtime.GC()`。
 
-二进制体积差和 transport/ 三份 ws/TLS 选择不是本笔记实施项。
+二进制体积差和 transport/ 三份 ws/TLS 选择不是本笔记实施项——后者已在 [2026-09-17-transport-protocol-security-stack](./2026-09-17-transport-protocol-security-stack.md) 收敛为 `StreamStack` + `vmess.StreamTLSConn`。
 
 ## Decision
 

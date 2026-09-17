@@ -81,7 +81,7 @@ Padding 是可选的参数，仅作用于 1-RTT 以消除握手的长度特征�
 
 ## network
 
-传输层，支持 ws/http/h2/grpc/xhttp，不配置或配置其他值则为 tcp
+传输层，支持 `tcp`/`ws`/`http`/`h2`/`grpc`/`xhttp`/`mkcp`/`mekya`。`httpupgrade` 视为 `ws` + HTTP Upgrade。不配置或配置其他值则为 tcp
 
 参阅 [传输层配置](./transport.md)
 

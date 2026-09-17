@@ -32,6 +32,8 @@ type TLSConfig struct {
 	Reality           *tlsC.RealityConfig
 	TLSMirror         *tlsmirror.Config
 	TLSMirrorDialer   tlsmirror.EnrollmentDialer
+	// WebsocketALPN forces uTLS ALPN to http/1.1 after fingerprint construction.
+	WebsocketALPN bool
 }
 
 func (cfg *TLSConfig) ToStdConfig() (*tls.Config, error) {
@@ -121,6 +123,11 @@ func StreamTLSConn(ctx context.Context, conn net.Conn, cfg *TLSConfig) (net.Conn
 			return nil, err
 		}
 		tlsConn := tlsC.UClient(conn, tlsConfig, clientFingerprint)
+		if cfg.WebsocketALPN {
+			if err = tlsC.BuildWebsocketHandshakeState(tlsConn); err != nil {
+				return nil, err
+			}
+		}
 		err = tlsConn.HandshakeContext(ctx)
 		if err != nil {
 			return nil, err

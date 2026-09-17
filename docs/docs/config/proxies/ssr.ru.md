@@ -1,5 +1,8 @@
 # ShadowsocksR
 
+!!! note
+    Устаревший протокол. Существующие конфигурации `type: ssr` по-прежнему работают. Это не тот же протокол, что Shadowsocks (`type: ss`); не делайте взаимный alias.
+
 ```{.yaml linenums="1"}
 proxies:
   - name: "ssr"

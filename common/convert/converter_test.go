@@ -329,3 +329,104 @@ func TestConvertsV2RayVmessBase64HTTPRemappedToH2Transport(t *testing.T) {
 	_, err = adapter.ParseProxy(proxies[0])
 	assert.NoError(t, err)
 }
+
+func TestConvertsV2RayVlessHTTPUpgradeUsesWSOpts(t *testing.T) {
+	vlessTest := "vless://uuid@example.com:443?security=tls&type=httpupgrade&host=cdn.example.com&path=%2Fupgrade#vless-httpupgrade"
+
+	proxies, err := ConvertsV2Ray([]byte(vlessTest))
+
+	assert.Nil(t, err)
+	assert.Len(t, proxies, 1)
+	assert.Equal(t, "ws", proxies[0]["network"])
+	wsOpts, ok := proxies[0]["ws-opts"].(map[string]any)
+	assert.True(t, ok)
+	assert.Equal(t, "/upgrade", wsOpts["path"])
+	assert.Equal(t, true, wsOpts["v2ray-http-upgrade"])
+	assert.NotContains(t, wsOpts, "v2ray-http-upgrade-fast-open")
+	assert.NotContains(t, wsOpts, "max-early-data")
+	headers, ok := wsOpts["headers"].(map[string]any)
+	assert.True(t, ok)
+	assert.Equal(t, "cdn.example.com", headers["Host"])
+}
+
+func TestConvertsV2RayVlessHTTPUpgradeFastOpen(t *testing.T) {
+	vlessTest := "vless://uuid@example.com:443?security=tls&type=httpupgrade&host=cdn.example.com&path=%2Fupgrade&ed=2048#vless-httpupgrade-ed"
+
+	proxies, err := ConvertsV2Ray([]byte(vlessTest))
+
+	assert.Nil(t, err)
+	assert.Len(t, proxies, 1)
+	assert.Equal(t, "ws", proxies[0]["network"])
+	wsOpts, ok := proxies[0]["ws-opts"].(map[string]any)
+	assert.True(t, ok)
+	assert.Equal(t, true, wsOpts["v2ray-http-upgrade"])
+	assert.Equal(t, true, wsOpts["v2ray-http-upgrade-fast-open"])
+	assert.NotContains(t, wsOpts, "max-early-data")
+}
+
+func TestConvertsV2RayVlessWSUnchanged(t *testing.T) {
+	vlessTest := "vless://uuid@example.com:443?security=tls&type=ws&host=cdn.example.com&path=%2Fws&ed=2048#vless-ws"
+
+	proxies, err := ConvertsV2Ray([]byte(vlessTest))
+
+	assert.Nil(t, err)
+	assert.Len(t, proxies, 1)
+	assert.Equal(t, "ws", proxies[0]["network"])
+	wsOpts, ok := proxies[0]["ws-opts"].(map[string]any)
+	assert.True(t, ok)
+	assert.Equal(t, "/ws", wsOpts["path"])
+	assert.Equal(t, 2048, wsOpts["max-early-data"])
+	assert.Equal(t, "Sec-WebSocket-Protocol", wsOpts["early-data-header-name"])
+	assert.NotContains(t, wsOpts, "v2ray-http-upgrade")
+	assert.NotContains(t, wsOpts, "v2ray-http-upgrade-fast-open")
+}
+
+func TestConvertsV2RayVmessBase64HTTPUpgrade(t *testing.T) {
+	payload := `{"v":"2","ps":"demo-httpupgrade","add":"server.example.com","port":"443","id":"b831381d-6324-4d53-ad4f-8cda48b30811","aid":"0","scy":"auto","net":"httpupgrade","type":"none","host":"cdn.example.com","path":"/upgrade","tls":"tls"}`
+	vmessTest := "vmess://" + base64.StdEncoding.EncodeToString([]byte(payload))
+
+	proxies, err := ConvertsV2Ray([]byte(vmessTest))
+
+	assert.Nil(t, err)
+	assert.Len(t, proxies, 1)
+	assert.Equal(t, "ws", proxies[0]["network"])
+	assert.Equal(t, map[string]any{
+		"path":                  "/upgrade",
+		"v2ray-http-upgrade":    true,
+		"headers":               map[string]any{"Host": "cdn.example.com"},
+	}, proxies[0]["ws-opts"])
+}
+
+func TestConvertsV2RayVmessBase64HTTPUpgradeFastOpen(t *testing.T) {
+	payload := `{"v":"2","ps":"demo-httpupgrade-ed","add":"server.example.com","port":"443","id":"b831381d-6324-4d53-ad4f-8cda48b30811","aid":"0","scy":"auto","net":"httpupgrade","type":"none","host":"cdn.example.com","path":"/upgrade?ed=2048","tls":"tls"}`
+	vmessTest := "vmess://" + base64.StdEncoding.EncodeToString([]byte(payload))
+
+	proxies, err := ConvertsV2Ray([]byte(vmessTest))
+
+	assert.Nil(t, err)
+	assert.Len(t, proxies, 1)
+	assert.Equal(t, "ws", proxies[0]["network"])
+	assert.Equal(t, map[string]any{
+		"path":                           "/upgrade",
+		"v2ray-http-upgrade":             true,
+		"v2ray-http-upgrade-fast-open":   true,
+		"headers":                        map[string]any{"Host": "cdn.example.com"},
+	}, proxies[0]["ws-opts"])
+}
+
+func TestConvertsV2RayVmessBase64WSUnchanged(t *testing.T) {
+	payload := `{"v":"2","ps":"demo-ws","add":"server.example.com","port":"443","id":"b831381d-6324-4d53-ad4f-8cda48b30811","aid":"0","scy":"auto","net":"ws","type":"none","host":"cdn.example.com","path":"/ws?ed=2048","tls":"tls"}`
+	vmessTest := "vmess://" + base64.StdEncoding.EncodeToString([]byte(payload))
+
+	proxies, err := ConvertsV2Ray([]byte(vmessTest))
+
+	assert.Nil(t, err)
+	assert.Len(t, proxies, 1)
+	assert.Equal(t, "ws", proxies[0]["network"])
+	assert.Equal(t, map[string]any{
+		"path":                    "/ws",
+		"max-early-data":          2048,
+		"early-data-header-name":  "Sec-WebSocket-Protocol",
+		"headers":                 map[string]any{"Host": "cdn.example.com"},
+	}, proxies[0]["ws-opts"])
+}

@@ -313,6 +313,12 @@ func ConvertsV2Ray(buf []byte) ([]map[string]any, error) {
 				} else if network == "http" {
 					network = "h2"
 				}
+			}
+			rawNetwork := network
+			if network == "httpupgrade" {
+				network = "ws"
+			}
+			if ok {
 				vmess["network"] = network
 			}
 
@@ -327,7 +333,7 @@ func ConvertsV2Ray(buf []byte) ([]map[string]any, error) {
 				}
 			}
 
-			switch network {
+			switch rawNetwork {
 			case "http":
 				headers := make(map[string]any)
 				httpOpts := make(map[string]any)
@@ -360,6 +366,9 @@ func ConvertsV2Ray(buf []byte) ([]map[string]any, error) {
 				if host, ok := values["host"].(string); ok && host != "" {
 					headers["Host"] = host
 				}
+				if rawNetwork == "httpupgrade" {
+					wsOpts["v2ray-http-upgrade"] = true
+				}
 				if path, ok := values["path"].(string); ok && path != "" {
 					path := path
 					pathURL, err := url.Parse(path)
@@ -368,7 +377,7 @@ func ConvertsV2Ray(buf []byte) ([]map[string]any, error) {
 						if earlyData := query.Get("ed"); earlyData != "" {
 							med, err := strconv.Atoi(earlyData)
 							if err == nil {
-								switch network {
+								switch rawNetwork {
 								case "ws":
 									wsOpts["max-early-data"] = med
 									wsOpts["early-data-header-name"] = "Sec-WebSocket-Protocol"

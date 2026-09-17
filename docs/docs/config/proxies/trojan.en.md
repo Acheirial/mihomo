@@ -64,6 +64,6 @@ trojan-go Shadowsocks AEAD encryption password.
 
 ## network
 
-Transport layer. Supports `ws`/`grpc`. If unset or set to another value, TCP is used.
+Transport layer. Supports `tcp`/`ws`/`http`/`h2`/`grpc`/`xhttp`/`mkcp`/`mekya`. `httpupgrade` is treated as `ws` plus HTTP Upgrade. If unset or set to another value, TCP is used. If `network` is unset, TLS is still required.
 
 See [Transport configuration](./transport.md).

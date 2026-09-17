@@ -4,13 +4,11 @@ import (
 	"context"
 	"net"
 
-	"github.com/metacubex/mihomo/component/ca"
 	"github.com/metacubex/mihomo/component/ech"
 	"github.com/metacubex/mihomo/transport/vmess"
 
 	"github.com/metacubex/http"
 	"github.com/metacubex/smux"
-	"github.com/metacubex/tls"
 )
 
 // Option is options of gost websocket
@@ -63,24 +61,22 @@ func NewGostWebsocket(ctx context.Context, conn net.Conn, option *Option) (net.C
 
 	var err error
 	if option.TLS {
-		config.TLS = true
-		config.TLSConfig, err = ca.GetTLSConfig(ca.Option{
-			TLSConfig: &tls.Config{
-				ServerName:         option.Host,
-				InsecureSkipVerify: option.SkipCertVerify,
-				NextProtos:         []string{"http/1.1"},
-			},
-			Fingerprint:    option.Fingerprint,
+		host := option.Host
+		if h := header.Get("Host"); h != "" {
+			host = h
+		}
+		conn, err = vmess.StreamTLSConn(ctx, conn, &vmess.TLSConfig{
+			Host:           host,
+			WebsocketALPN:  true,
+			NextProtos:     []string{"http/1.1"},
+			SkipCertVerify: option.SkipCertVerify,
 			NameCertVerify: option.NameCertVerify,
+			FingerPrint:    option.Fingerprint,
 			Certificate:    option.Certificate,
 			PrivateKey:     option.PrivateKey,
 		})
 		if err != nil {
 			return nil, err
-		}
-
-		if host := config.Headers.Get("Host"); host != "" {
-			config.TLSConfig.ServerName = host
 		}
 	}
 

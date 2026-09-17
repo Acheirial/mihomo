@@ -1,5 +1,8 @@
 # Hysteria
 
+!!! note
+    Legacy protocol (Hysteria 1). Existing `type: hysteria` configs remain valid. This is not the same protocol as Hysteria2 (`type: hysteria2`); do not alias them to each other.
+
 ```{.yaml linenums="1"}
 proxies:
 - name: "hysteria"

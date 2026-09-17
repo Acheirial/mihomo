@@ -10,18 +10,17 @@ import (
 	"strconv"
 
 	N "github.com/metacubex/mihomo/common/net"
-	"github.com/metacubex/mihomo/component/ca"
 	C "github.com/metacubex/mihomo/constant"
+	vmess "github.com/metacubex/mihomo/transport/vmess"
 
 	"github.com/metacubex/http"
-	"github.com/metacubex/tls"
 )
 
 type Http struct {
 	*Base
 	user      string
 	pass      string
-	tlsConfig *tls.Config
+	tlsConfig *vmess.TLSConfig
 	option    *HttpOption
 }
 
@@ -45,9 +44,8 @@ type HttpOption struct {
 // StreamConnContext implements C.ProxyAdapter
 func (h *Http) StreamConnContext(ctx context.Context, c net.Conn, metadata *C.Metadata) (net.Conn, error) {
 	if h.tlsConfig != nil {
-		cc := tls.Client(c, h.tlsConfig)
-		err := cc.HandshakeContext(ctx)
-		c = cc
+		var err error
+		c, err = vmess.StreamTLSConn(ctx, c, h.tlsConfig)
 		if err != nil {
 			return nil, fmt.Errorf("%s connect error: %w", h.addr, err)
 		}
@@ -146,25 +144,19 @@ func (h *Http) shakeHandContext(ctx context.Context, c net.Conn, metadata *C.Met
 }
 
 func NewHttp(option HttpOption) (*Http, error) {
-	var tlsConfig *tls.Config
+	var tlsConfig *vmess.TLSConfig
 	if option.TLS {
 		sni := option.Server
 		if option.SNI != "" {
 			sni = option.SNI
 		}
-		var err error
-		tlsConfig, err = ca.GetTLSConfig(ca.Option{
-			TLSConfig: &tls.Config{
-				InsecureSkipVerify: option.SkipCertVerify,
-				ServerName:         sni,
-			},
-			Fingerprint:    option.Fingerprint,
+		tlsConfig = &vmess.TLSConfig{
+			Host:           sni,
+			SkipCertVerify: option.SkipCertVerify,
 			NameCertVerify: option.NameCertVerify,
+			FingerPrint:    option.Fingerprint,
 			Certificate:    option.Certificate,
 			PrivateKey:     option.PrivateKey,
-		})
-		if err != nil {
-			return nil, err
 		}
 	}
 

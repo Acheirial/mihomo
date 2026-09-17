@@ -1,5 +1,8 @@
 # 传输层配置
 
+!!! note
+    `network` 可与 VMess、VLESS、Trojan 自由组合：`tcp`/`ws`/`http`/`h2`/`grpc`/`xhttp`/`mkcp`/`mekya`。`httpupgrade` 视为 `ws` + HTTP Upgrade。Shadowsocks / Snell 仍走 `plugin` / `obfs-opts`，不要把这些传输层写到 SS 节点上。
+
 === "http"
     ```{.yaml linenums="1"}
     proxies:
@@ -279,7 +282,7 @@ Early Data 首包长度阈值
 
 ### ws-opts.v2ray-http-upgrade
 
-使用 http upgrade
+使用 http upgrade。`network: httpupgrade` 会规范化为 `ws` 并启用此项
 
 ### ws-opts.v2ray-http-upgrade-fast-open
 
@@ -290,7 +293,7 @@ Early Data 首包长度阈值
 `mkcp` 传输层设置，仅传输层为 `mkcp` 时生效
 
 !!! note
-    仅 VMess 支持 mKCP 传输层，请勿在其他协议上使用
+    VMess、VLESS、Trojan 均可使用 mKCP。Shadowsocks 请继续使用 `plugin`
 
 ### mkcp-opts.mtu
 
@@ -333,7 +336,7 @@ Early Data 首包长度阈值
 `mekya` 传输层设置，仅传输层为 `mekya` 时生效
 
 !!! note
-    仅 VMess 支持 Mekya 传输层，请勿在其他协议上使用
+    VMess、VLESS、Trojan 均可使用 Mekya。Shadowsocks 请继续使用 `plugin`
 
 ### mekya-opts.url
 
@@ -366,7 +369,7 @@ Mekya 内部 KCP 参数，字段含义同 [mkcp-opts](#mkcp-opts)
 默认仅支持 h2，如果开启 h3 模式需要设置`alpn: [h3]`，如果开启 http1.1 模式需要设置`alpn: [http/1.1]`
 
 !!! note
-    仅 VLESS 支持 xhttp 传输层，请勿在其他协议上使用
+    VMess、VLESS、Trojan 均可使用 xhttp。Shadowsocks 请继续使用 `plugin`
 
 
 ### xhttp-opts.path
