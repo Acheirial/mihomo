@@ -219,6 +219,8 @@ func parseExperimental(cfg *RawConfig) (*Experimental, error) {
 		QUICGoDisableECN:          cfg.Experimental.QUICGoDisableECN,
 		IP4PEnable:                cfg.Experimental.IP4PEnable,
 		DisableConnectionTracking: cfg.Experimental.DisableConnectionTracking,
+		GOMemoryLimit:             cfg.Experimental.GOMemoryLimit,
+		GOGCPercent:               cfg.Experimental.GOGCPercent,
 	}, nil
 }
 

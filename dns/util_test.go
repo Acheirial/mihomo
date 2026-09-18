@@ -208,8 +208,8 @@ func TestUpdateMsgTTL(t *testing.T) {
 				makeRR(D.TypeA, "a.example.org.", 300),
 				makeRR(D.TypeA, "b.example.org.", 400),
 			},
-			Ns:     []D.RR{makeRR(D.TypeNS, "example.org.", 100)},
-			Extra:  []D.RR{makeRR(D.TypeTXT, "extra.example.org.", 200)},
+			Ns:    []D.RR{makeRR(D.TypeNS, "example.org.", 100)},
+			Extra: []D.RR{makeRR(D.TypeTXT, "extra.example.org.", 200)},
 		}
 		updateMsgTTL(m, 50)
 		assert.Equal(t, uint32(50), m.Answer[0].Header().Ttl)

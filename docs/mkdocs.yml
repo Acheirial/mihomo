@@ -243,6 +243,7 @@ nav:
       - Tun: config/inbound/tun.md
       - listeners:
         - 通用字段: config/inbound/listeners/index.md
+        - 传输层配置: config/inbound/listeners/transport.md
         - http: config/inbound/listeners/http.md
         - socks: config/inbound/listeners/socks.md
         - mixed: config/inbound/listeners/mixed.md

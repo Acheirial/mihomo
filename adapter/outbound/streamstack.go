@@ -15,6 +15,7 @@ import (
 	"github.com/metacubex/mihomo/component/ech"
 	tlsC "github.com/metacubex/mihomo/component/tls"
 	C "github.com/metacubex/mihomo/constant"
+	"github.com/metacubex/mihomo/listener/security"
 	"github.com/metacubex/mihomo/transport/gun"
 	"github.com/metacubex/mihomo/transport/jls"
 	"github.com/metacubex/mihomo/transport/mekya"
@@ -51,43 +52,42 @@ type StreamStack struct {
 
 // StreamStackOption is the YAML-facing combination of network + TLS fields.
 type StreamStackOption struct {
-	Dialer            C.Dialer
-	Addr              string
-	Server            string
-	Port              int
-	Network           string
-	TLS               bool
-	ForceTLS          bool
-	ALPN              []string
-	SkipCertVerify    bool
-	NameCertVerify    string
-	Fingerprint       string
-	Certificate       string
-	PrivateKey        string
-	ServerName        string
-	ClientFingerprint string
-	ECH               *ech.Config
-	ShadowTLS         *shadowtls.Config
-	Restls            *restls.Config
-	JLS               *jls.Config
-	Reality           *tlsC.RealityConfig
-	TLSMirror         *tlsmirror.Config
-	TLSMirrorDialer   tlsmirror.EnrollmentDialer
-	SecurityMode      string
-	WS                WSOptions
-	HTTP              HTTPOptions
-	H2                HTTP2Options
-	Grpc              GrpcOptions
-	XHTTP             XHTTPOptions
-	MKCP              MKCPOptions
-	Mekya             MekyaOptions
-	DialOptions       []dialer.Option
+	Dialer                    C.Dialer
+	Addr                      string
+	Server                    string
+	Port                      int
+	Network                   string
+	TLS                       bool
+	ForceTLS                  bool
+	ALPN                      []string
+	SkipCertVerify            bool
+	NameCertVerify            string
+	Fingerprint               string
+	Certificate               string
+	PrivateKey                string
+	ServerName                string
+	ClientFingerprint         string
+	ECH                       *ech.Config
+	ShadowTLS                 *shadowtls.Config
+	Restls                    *restls.Config
+	JLS                       *jls.Config
+	Reality                   *tlsC.RealityConfig
+	TLSMirror                 *tlsmirror.Config
+	TLSMirrorDialer           tlsmirror.EnrollmentDialer
+	SecurityMode              string
+	WS                        WSOptions
+	HTTP                      HTTPOptions
+	H2                        HTTP2Options
+	Grpc                      GrpcOptions
+	XHTTP                     XHTTPOptions
+	MKCP                      MKCPOptions
+	Mekya                     MekyaOptions
+	DialOptions               []dialer.Option
 	RandomizeWSHostWithoutTLS bool
 	WSHost                    string
 	DefaultALPN               []string
 	DefaultWSALPN             []string
 }
-
 
 func NormalizeNetwork(network string) string {
 	switch strings.ToLower(network) {
@@ -102,9 +102,11 @@ func NormalizeNetwork(network string) string {
 	}
 }
 
+// checkExclusiveSecurityModes validates mutual exclusion of security modes and
+// returns the single enabled mode name ("" when none).
 func checkExclusiveSecurityModes(modes []string) (string, error) {
-	if len(modes) > 1 {
-		return "", errors.New("security modes are mutually exclusive: " + strings.Join(modes, ", "))
+	if err := security.CheckExclusive(modes); err != nil {
+		return "", err
 	}
 	if len(modes) == 1 {
 		return modes[0], nil
@@ -112,24 +114,9 @@ func checkExclusiveSecurityModes(modes []string) (string, error) {
 	return "", nil
 }
 
+// collectSecurityModes returns the enabled outbound security-mode names.
 func collectSecurityModes(shadowTLS *shadowtls.Config, restls *restls.Config, jls *jls.Config, reality *tlsC.RealityConfig, tlsMirror bool) []string {
-	modes := make([]string, 0, 5)
-	if shadowTLS != nil {
-		modes = append(modes, "ShadowTLS")
-	}
-	if restls != nil {
-		modes = append(modes, "Restls")
-	}
-	if jls != nil {
-		modes = append(modes, "JLS")
-	}
-	if reality != nil {
-		modes = append(modes, "REALITY")
-	}
-	if tlsMirror {
-		modes = append(modes, "TLSMirror")
-	}
-	return modes
+	return security.Modes(false, shadowTLS != nil, restls != nil, jls != nil, reality != nil, tlsMirror)
 }
 
 func NewStreamStack(opt StreamStackOption) (*StreamStack, error) {
@@ -694,7 +681,7 @@ func (s *StreamStack) xhttpDownload(opt StreamStackOption, uplink *xhttp.Config,
 	}
 
 	return &xhttpDownload{
-		cfg: &downloadCfg,
+		cfg:   &downloadCfg,
 		maker: s.xhttpTransport(opt, downloadAddr, downloadTLS, downloadALPN, downloadSkipCertVerify, downloadNameCertVerify, downloadFingerprint, downloadCertificate, downloadPrivateKey, downloadServerName, downloadClientFingerprint, downloadEchConfig, downloadShadowTLS, downloadRestls, downloadJLS, downloadReality, downloadMode, downloadKeepAlive),
 	}, nil
 }

@@ -6,6 +6,7 @@ import (
 	"net/netip"
 	"os"
 	"runtime"
+	"runtime/debug"
 	"strconv"
 	"sync"
 	"time"
@@ -223,8 +224,14 @@ func updateExperimental(c *config.Experimental) {
 		_ = os.Setenv("QUIC_GO_DISABLE_ECN", strconv.FormatBool(true))
 	}
 	resolver.SetIP4PEnable(c.IP4PEnable)
+	// GOMemoryLimit is in MiB and GOGCPercent is a percentage; 0 means unset, leaving the runtime default.
+	if c.GOMemoryLimit > 0 {
+		debug.SetMemoryLimit(int64(c.GOMemoryLimit) << 20)
+	}
+	if c.GOGCPercent != 0 {
+		debug.SetGCPercent(c.GOGCPercent)
+	}
 }
-
 func updateNTP(c *config.NTP) {
 	if c.Enable {
 		ntp.ReCreateNTPService(

@@ -27,6 +27,10 @@ type VlessOption struct {
 	JLSConfig       JLSConfig     `inbound:"jls-config,omitempty"`
 	RealityConfig   RealityConfig `inbound:"reality-config,omitempty"`
 	MuxOption       MuxOption     `inbound:"mux-option,omitempty"`
+	// mkcp/mekya 不支持与 shadow-tls/res-tls/jls 同时使用
+	MekyaConfig MekyaConfig `inbound:"mekya-config,omitempty"`
+	// mkcp/mekya 不支持与 shadow-tls/res-tls/jls 同时使用
+	MKCPConfig MKCPConfig `inbound:"mkcp-config,omitempty"`
 }
 
 type VlessUser struct {
@@ -129,8 +133,10 @@ func NewVless(options *VlessOption) (*Vless, error) {
 			ShadowTLS:       options.ShadowTLS.Build(),
 			ResTLS:          options.ResTLS.Build(),
 			JLSConfig:       options.JLSConfig.Build(),
-			RealityConfig:   options.RealityConfig.Build(),
 			MuxOption:       options.MuxOption.Build(),
+			// mkcp/mekya 不支持与 shadow-tls/res-tls/jls 同时使用
+			MekyaConfig: options.MekyaConfig.Build(),
+			MKCPConfig:  options.MKCPConfig.Build(),
 		},
 	}, nil
 }

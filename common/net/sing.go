@@ -121,7 +121,7 @@ func copyWithIncrease(dst io.Writer, src io.Reader) (int64, error) {
 		pool.Put(buf)
 		if er != nil {
 			if er == io.EOF {
-				return written, nil
+				return written, io.EOF
 			}
 			return written, er
 		}

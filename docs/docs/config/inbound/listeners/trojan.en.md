@@ -14,6 +14,7 @@ listeners:
       password: 9d0cb9d0-964f-4ef6-897d-6c6b3ccf9e68
   # ws-path: "/" # if not empty, enables websocket transport layer
   # grpc-service-name: "GunService" # if not empty, enables grpc transport layer
+  # mkcp-config/mekya-config: Optional; when enabled, listens on UDP and cannot be used together with shadow-tls/res-tls/jls-config. See [Inbound Transport](./transport.en.md)
   # if the following two options are filled, enables tls (must be filled together)
   certificate: ./server.crt # certificate in PEM format, or the path to the certificate
   private-key: ./server.key # corresponding private key in PEM format, or the path to the private key

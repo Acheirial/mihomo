@@ -7,6 +7,7 @@ listeners:
   port: 10818
   listen: 0.0.0.0
   # routing-mark: 0 # set routing-mark for listening socket (Linux only)
+  # mkcp-config/mekya-config: Optional; when enabled, listens on UDP and cannot be used together with shadow-tls/res-tls/jls-config. See [Inbound Transport](./transport.en.md)
   # When "shadow-tls", "res-tls", and "jls-config" are all disabled and "allow-insecure" is not true, "certificate" and "private-key" must be filled in; do not fill them in when ShadowTLS, ResTLS, or JLS is enabled
   users:
     username1: password1

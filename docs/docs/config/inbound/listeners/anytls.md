@@ -7,6 +7,7 @@ listeners:
   port: 10818
   listen: 0.0.0.0
   # routing-mark: 0 # 为监听socket设置routing-mark（仅支持linux）
+  # mkcp-config/mekya-config: 可选，启用后监听 UDP，不可与 shadow-tls/res-tls/jls-config 同时使用，详见 [传输层配置](./transport.md)
   # "shadow-tls"、"res-tls" 和 "jls-config" 均未启用且 "allow-insecure" 不为 true 时，必须填写 "certificate" 和 "private-key"；启用 ShadowTLS、ResTLS 或 JLS 时不要填写
   users:
     username1: password1

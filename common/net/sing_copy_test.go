@@ -4,7 +4,9 @@ import (
 	"bytes"
 	"errors"
 	"io"
+	"net"
 	"testing"
+	"time"
 
 	"github.com/metacubex/mihomo/common/pool"
 
@@ -55,7 +57,7 @@ func TestCopyWithIncreaseEOF(t *testing.T) {
 	src := bytes.NewReader([]byte("hello"))
 	dst := &bytes.Buffer{}
 	n, err := copyWithIncrease(dst, src)
-	require.NoError(t, err)
+	require.ErrorIs(t, err, io.EOF)
 	assert.Equal(t, int64(5), n)
 	assert.Equal(t, "hello", dst.String())
 }
@@ -68,7 +70,7 @@ func TestCopyWithIncreaseGrowsAfterThreshold(t *testing.T) {
 	src := &recordingReader{r: bytes.NewReader(payload)}
 	dst := &bytes.Buffer{}
 	n, err := copyWithIncrease(dst, src)
-	require.NoError(t, err)
+	require.ErrorIs(t, err, io.EOF)
 	assert.Equal(t, int64(len(payload)), n)
 	assert.Equal(t, payload, dst.Bytes())
 	require.Greater(t, len(src.sizes), 1)
@@ -99,4 +101,53 @@ func TestCopyWithIncreaseShortWrite(t *testing.T) {
 	n, err := copyWithIncrease(errWriter{n: 2}, bytes.NewReader([]byte("hello")))
 	assert.Equal(t, int64(2), n)
 	assert.ErrorIs(t, err, io.ErrShortWrite)
+}
+
+func TestRelayClosesOnEOFPeer(t *testing.T) {
+	leftConn, rightConn := net.Pipe()
+
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		Relay(leftConn, rightConn)
+	}()
+
+	// Drain what the relay delivers, so writes never block.
+	got := make(chan []byte, 1)
+	go func() {
+		buf := make([]byte, 5)
+		_, err := io.ReadFull(rightConn, buf)
+		if err == nil {
+			got <- buf
+		}
+	}()
+
+	if _, err := leftConn.Write([]byte("hello")); err != nil {
+		t.Fatalf("write: %v", err)
+	}
+	select {
+	case b := <-got:
+		assert.Equal(t, "hello", string(b))
+	case <-time.After(time.Second):
+		t.Fatal("payload not relayed")
+	}
+
+	// Peer closes its write side entirely: source EOF for the relay.
+	if err := leftConn.Close(); err != nil {
+		t.Fatalf("close: %v", err)
+	}
+
+	select {
+	case <-done:
+	case <-time.After(2 * time.Second):
+		t.Fatal("Relay did not return after peer EOF")
+	}
+
+	// Both relayed conns must be fully closed, not half-closed.
+	if _, err := rightConn.Read(make([]byte, 1)); err == nil {
+		t.Error("rightConn still readable: Relay half-closed instead of closing")
+	}
+	if _, err := leftConn.Read(make([]byte, 1)); err == nil {
+		t.Error("leftConn still readable: Relay half-closed instead of closing")
+	}
 }

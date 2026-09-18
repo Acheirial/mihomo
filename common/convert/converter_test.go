@@ -391,9 +391,9 @@ func TestConvertsV2RayVmessBase64HTTPUpgrade(t *testing.T) {
 	assert.Len(t, proxies, 1)
 	assert.Equal(t, "ws", proxies[0]["network"])
 	assert.Equal(t, map[string]any{
-		"path":                  "/upgrade",
-		"v2ray-http-upgrade":    true,
-		"headers":               map[string]any{"Host": "cdn.example.com"},
+		"path":               "/upgrade",
+		"v2ray-http-upgrade": true,
+		"headers":            map[string]any{"Host": "cdn.example.com"},
 	}, proxies[0]["ws-opts"])
 }
 
@@ -407,10 +407,10 @@ func TestConvertsV2RayVmessBase64HTTPUpgradeFastOpen(t *testing.T) {
 	assert.Len(t, proxies, 1)
 	assert.Equal(t, "ws", proxies[0]["network"])
 	assert.Equal(t, map[string]any{
-		"path":                           "/upgrade",
-		"v2ray-http-upgrade":             true,
-		"v2ray-http-upgrade-fast-open":   true,
-		"headers":                        map[string]any{"Host": "cdn.example.com"},
+		"path":                         "/upgrade",
+		"v2ray-http-upgrade":           true,
+		"v2ray-http-upgrade-fast-open": true,
+		"headers":                      map[string]any{"Host": "cdn.example.com"},
 	}, proxies[0]["ws-opts"])
 }
 
@@ -424,9 +424,9 @@ func TestConvertsV2RayVmessBase64WSUnchanged(t *testing.T) {
 	assert.Len(t, proxies, 1)
 	assert.Equal(t, "ws", proxies[0]["network"])
 	assert.Equal(t, map[string]any{
-		"path":                    "/ws",
-		"max-early-data":          2048,
-		"early-data-header-name":  "Sec-WebSocket-Protocol",
-		"headers":                 map[string]any{"Host": "cdn.example.com"},
+		"path":                   "/ws",
+		"max-early-data":         2048,
+		"early-data-header-name": "Sec-WebSocket-Protocol",
+		"headers":                map[string]any{"Host": "cdn.example.com"},
 	}, proxies[0]["ws-opts"])
 }

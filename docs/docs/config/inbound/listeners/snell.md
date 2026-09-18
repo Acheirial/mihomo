@@ -13,6 +13,7 @@ listeners:
     # obfs-opts:
     #   mode: http # 可选：http / tls
     #   host: bing.com
+    # mkcp-config/mekya-config: 可选，启用后监听 UDP，不可与 shadow-tls/res-tls/jls-config 同时使用，详见 [传输层配置](./transport.md)
     # shadow-tls:
     #   enable: false # 设置为true时开启
     #   version: 3 # 支持v1/v2/v3

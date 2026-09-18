@@ -14,6 +14,7 @@ listeners:
       password: 9d0cb9d0-964f-4ef6-897d-6c6b3ccf9e68
   # ws-path: "/" # 如果不为空则开启 websocket 传输层
   # grpc-service-name: "GunService" # 如果不为空则开启 grpc 传输层
+  # mkcp-config/mekya-config: 可选，启用后监听 UDP，不可与 shadow-tls/res-tls/jls-config 同时使用，详见 [传输层配置](./transport.md)
   # 下面两项如果填写则开启 tls（需要同时填写）
   certificate: ./server.crt # 证书 PEM 格式，或者 证书的路径
   private-key: ./server.key # 证书对应的私钥 PEM 格式，或者私钥路径

@@ -8,13 +8,11 @@ import (
 
 	"github.com/metacubex/mihomo/adapter/inbound"
 	"github.com/metacubex/mihomo/common/sockopt"
-	"github.com/metacubex/mihomo/component/ca"
-	"github.com/metacubex/mihomo/component/ech"
 	C "github.com/metacubex/mihomo/constant"
 	LC "github.com/metacubex/mihomo/listener/config"
+	"github.com/metacubex/mihomo/listener/security"
 	"github.com/metacubex/mihomo/listener/sing"
 	"github.com/metacubex/mihomo/log"
-	"github.com/metacubex/mihomo/ntp"
 	"github.com/metacubex/mihomo/transport/trusttunnel"
 
 	"github.com/metacubex/tls"
@@ -37,35 +35,15 @@ func New(config LC.TrustTunnelServer, lc C.InboundListenConfig, tunnel C.Tunnel,
 		}
 	}
 
-	tlsConfig := &tls.Config{Time: ntp.Now}
-	if config.Certificate != "" && config.PrivateKey != "" {
-		certLoader, err := ca.NewTLSKeyPairLoader(config.Certificate, config.PrivateKey)
-		if err != nil {
-			return nil, err
-		}
-		tlsConfig.GetCertificate = func(*tls.ClientHelloInfo) (*tls.Certificate, error) {
-			return certLoader()
-		}
-
-		if config.EchKey != "" {
-			err = ech.LoadECHKey(config.EchKey, tlsConfig)
-			if err != nil {
-				return nil, err
-			}
-		}
-	}
-	tlsConfig.ClientAuth = ca.ClientAuthTypeFromString(config.ClientAuthType)
-	if len(config.ClientAuthCert) > 0 {
-		if tlsConfig.ClientAuth == tls.NoClientCert {
-			tlsConfig.ClientAuth = tls.RequireAndVerifyClientCert
-		}
-	}
-	if tlsConfig.ClientAuth == tls.VerifyClientCertIfGiven || tlsConfig.ClientAuth == tls.RequireAndVerifyClientCert {
-		pool, err := ca.LoadCertificates(config.ClientAuthCert)
-		if err != nil {
-			return nil, err
-		}
-		tlsConfig.ClientCAs = pool
+	tlsConfig, err := security.BuildTLS(security.TLSOption{
+		Certificate:    config.Certificate,
+		PrivateKey:     config.PrivateKey,
+		ClientAuthType: config.ClientAuthType,
+		ClientAuthCert: config.ClientAuthCert,
+		EchKey:         config.EchKey,
+	}, false)
+	if err != nil {
+		return nil, err
 	}
 
 	sl = &Listener{

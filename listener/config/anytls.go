@@ -18,6 +18,10 @@ type AnyTLSServer struct {
 	JLSConfig      JLSConfig         `yaml:"jls-config" json:"jls-config,omitempty"`
 	AllowInsecure  bool              `yaml:"allow-insecure" json:"allow-insecure,omitempty"`
 	PaddingScheme  string            `yaml:"padding-scheme" json:"padding-scheme,omitempty"`
+	// mkcp/mekya 不支持与 shadow-tls/res-tls/jls 同时使用
+	MekyaConfig MekyaConfig `yaml:"mekya-config" json:"mekya-config,omitempty"`
+	// mkcp/mekya 不支持与 shadow-tls/res-tls/jls 同时使用
+	MKCPConfig MKCPConfig `yaml:"mkcp-config" json:"mkcp-config,omitempty"`
 }
 
 func (t AnyTLSServer) String() string {

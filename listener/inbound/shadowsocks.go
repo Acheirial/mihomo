@@ -20,6 +20,10 @@ type ShadowSocksOption struct {
 	JLSConfig  JLSConfig  `inbound:"jls-config,omitempty"`
 	KcpTun     KcpTun     `inbound:"kcp-tun,omitempty"`
 	SimpleObfs SimpleObfs `inbound:"simple-obfs,omitempty"`
+	// mkcp/mekya 不支持与 shadow-tls/res-tls/jls 同时使用
+	MekyaConfig MekyaConfig `inbound:"mekya-config,omitempty"`
+	// mkcp/mekya 不支持与 shadow-tls/res-tls/jls 同时使用
+	MKCPConfig MKCPConfig `inbound:"mkcp-config,omitempty"`
 }
 
 type SimpleObfs struct {
@@ -65,6 +69,9 @@ func NewShadowSocks(options *ShadowSocksOption) (*ShadowSocks, error) {
 			JLSConfig:  options.JLSConfig.Build(),
 			KcpTun:     options.KcpTun.Build(),
 			SimpleObfs: options.SimpleObfs.Build(),
+			// mkcp/mekya 不支持与 shadow-tls/res-tls/jls 同时使用
+			MekyaConfig: options.MekyaConfig.Build(),
+			MKCPConfig:  options.MKCPConfig.Build(),
 		},
 	}, nil
 }

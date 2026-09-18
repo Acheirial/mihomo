@@ -11,21 +11,17 @@ import (
 	"github.com/metacubex/mihomo/adapter/inbound"
 	N "github.com/metacubex/mihomo/common/net"
 	"github.com/metacubex/mihomo/common/utils"
-	"github.com/metacubex/mihomo/component/ca"
-	"github.com/metacubex/mihomo/component/ech"
 	C "github.com/metacubex/mihomo/constant"
 	LC "github.com/metacubex/mihomo/listener/config"
 	"github.com/metacubex/mihomo/listener/jls"
 	"github.com/metacubex/mihomo/listener/reality"
 	"github.com/metacubex/mihomo/listener/restls"
+	"github.com/metacubex/mihomo/listener/security"
 	"github.com/metacubex/mihomo/listener/shadowtls"
 	"github.com/metacubex/mihomo/listener/sing"
-	"github.com/metacubex/mihomo/ntp"
-	"github.com/metacubex/mihomo/transport/gun"
 	"github.com/metacubex/mihomo/transport/shadowsocks/core"
 	"github.com/metacubex/mihomo/transport/socks5"
 	"github.com/metacubex/mihomo/transport/trojan"
-	mihomoVMess "github.com/metacubex/mihomo/transport/vmess"
 
 	"github.com/metacubex/http"
 	"github.com/metacubex/smux"
@@ -82,62 +78,32 @@ func New(config LC.TrojanServer, lc C.InboundListenConfig, tunnel C.Tunnel, addi
 		IdleTimeout: 30 * time.Second,
 		Protocols:   new(http.Protocols),
 	}
-	tlsConfig := &tls.Config{Time: ntp.Now}
+	tlsConfig, err := security.BuildTLS(security.TLSOption{
+		Certificate:    config.Certificate,
+		PrivateKey:     config.PrivateKey,
+		ClientAuthType: config.ClientAuthType,
+		ClientAuthCert: config.ClientAuthCert,
+		EchKey:         config.EchKey,
+	}, false)
+	if err != nil {
+		return nil, err
+	}
 	var shadowTLSBuilder *shadowtls.Builder
 	var restlsBuilder *restls.Builder
 	var jlsBuilder *jls.Builder
 	var realityBuilder *reality.Builder
 
-	if config.Certificate != "" && config.PrivateKey != "" {
-		certLoader, err := ca.NewTLSKeyPairLoader(config.Certificate, config.PrivateKey)
-		if err != nil {
-			return nil, err
-		}
-		tlsConfig.GetCertificate = func(*tls.ClientHelloInfo) (*tls.Certificate, error) {
-			return certLoader()
-		}
-
-		if config.EchKey != "" {
-			err = ech.LoadECHKey(config.EchKey, tlsConfig)
-			if err != nil {
-				return nil, err
-			}
-		}
-	}
-	tlsConfig.ClientAuth = ca.ClientAuthTypeFromString(config.ClientAuthType)
-	if len(config.ClientAuthCert) > 0 {
-		if tlsConfig.ClientAuth == tls.NoClientCert {
-			tlsConfig.ClientAuth = tls.RequireAndVerifyClientCert
-		}
-	}
-	if tlsConfig.ClientAuth == tls.VerifyClientCertIfGiven || tlsConfig.ClientAuth == tls.RequireAndVerifyClientCert {
-		pool, err := ca.LoadCertificates(config.ClientAuthCert)
-		if err != nil {
-			return nil, err
-		}
-		tlsConfig.ClientCAs = pool
-	}
 	if tlsConfig.ClientAuth != tls.NoClientCert && tlsConfig.GetCertificate == nil {
 		return nil, errors.New("client-auth requires certificate")
 	}
-	securityModes := make([]string, 0, 5)
-	if tlsConfig.GetCertificate != nil {
-		securityModes = append(securityModes, "certificate")
-	}
-	if config.RealityConfig.PrivateKey != "" {
-		securityModes = append(securityModes, "reality")
-	}
-	if config.ShadowTLS.Enable {
-		securityModes = append(securityModes, "shadow-tls")
-	}
-	if config.ResTLS.Enable {
-		securityModes = append(securityModes, "res-tls")
-	}
-	if config.JLSConfig.Enable {
-		securityModes = append(securityModes, "jls")
-	}
-	if len(securityModes) > 1 {
-		return nil, errors.New("security modes are mutually exclusive: " + strings.Join(securityModes, ", "))
+	if err := security.CheckExclusive(security.Modes(security.HasCertificate(security.TLSOption{
+		Certificate:    config.Certificate,
+		PrivateKey:     config.PrivateKey,
+		ClientAuthType: config.ClientAuthType,
+		ClientAuthCert: config.ClientAuthCert,
+		EchKey:         config.EchKey,
+	}), config.ShadowTLS.Enable, config.ResTLS.Enable, config.JLSConfig.Enable, config.RealityConfig.PrivateKey != "", false)); err != nil {
+		return nil, err
 	}
 	if config.RealityConfig.PrivateKey != "" {
 		realityBuilder, err = config.RealityConfig.Build(tunnel)
@@ -160,60 +126,38 @@ func New(config LC.TrojanServer, lc C.InboundListenConfig, tunnel C.Tunnel, addi
 			return nil, err
 		}
 	}
-	if config.WsPath != "" {
-		httpMux := http.NewServeMux()
-		httpMux.HandleFunc(config.WsPath, func(w http.ResponseWriter, r *http.Request) {
-			conn, err := mihomoVMess.StreamUpgradedWebsocketConn(w, r)
-			if err != nil {
-				http.Error(w, err.Error(), 500)
-				return
-			}
-			sl.HandleConn(conn, tunnel, additions...)
-		})
-		httpServer.Handler = httpMux
-		httpServer.Protocols.SetHTTP1(true)
-		tlsConfig.NextProtos = append(tlsConfig.NextProtos, "http/1.1")
-	}
-	if config.GrpcServiceName != "" {
-		httpServer.Handler = gun.NewServerHandler(gun.ServerOption{
-			ServiceName: config.GrpcServiceName,
-			ConnHandler: func(conn net.Conn) {
-				sl.HandleConn(conn, tunnel, additions...)
-			},
-			HttpHandler: httpServer.Handler,
-		})
-		httpServer.Protocols.SetHTTP2(true)
-		// SetUnencryptedHTTP2 to ensure we can work in plain http2 and some tls conn is not *tls.Conn (like *reality.Conn)
-		//
-		// Enable HTTP/2 support unconditionally on the server.
-		//
-		// Note that this usage is limited to our own net/http fork
-		// The standard library also needs to mask the tls.Conn type for the conn returned by the Listener.
-		// see: https://github.com/golang/go/issues/79293#issuecomment-4426393534
-		httpServer.Protocols.SetUnencryptedHTTP2(true)
-		tlsConfig.NextProtos = append([]string{"h2"}, tlsConfig.NextProtos...) // h2 must before http/1.1
+	wrap, _, err := security.ApplyTransport(&httpServer, tlsConfig, security.TransportOption{
+		WsPath:          config.WsPath,
+		GrpcServiceName: config.GrpcServiceName,
+	}, func(conn net.Conn) {
+		sl.HandleConn(conn, tunnel, additions...)
+	})
+	if err != nil {
+		return nil, err
 	}
 
 	for _, addr := range strings.Split(config.Listen, ",") {
 		addr := addr
 
 		//TCP
-		l, err := lc.Listen(context.Background(), "tcp", addr)
+		l0, err := lc.Listen(context.Background(), "tcp", addr)
 		if err != nil {
 			return nil, err
 		}
-		if shadowTLSBuilder != nil {
-			l = shadowTLSBuilder.NewListener(l)
-		} else if restlsBuilder != nil {
-			l = restlsBuilder.NewListener(l)
-		} else if jlsBuilder != nil {
-			l = jlsBuilder.NewListener(l)
-		} else if realityBuilder != nil {
-			l = realityBuilder.NewListener(l)
-		} else if tlsConfig.GetCertificate != nil {
-			l = tls.NewListener(l, tlsConfig)
-		} else if !config.TrojanSSOption.Enabled && !config.AllowInsecure {
+		l := security.WrapListener(l0, security.Builders{
+			ShadowTLS: shadowTLSBuilder,
+			RestLS:    restlsBuilder,
+			JLS:       jlsBuilder,
+			Reality:   realityBuilder,
+		}, tlsConfig)
+		if l == l0 && !config.TrojanSSOption.Enabled && !config.AllowInsecure {
 			return nil, errors.New("disallow using Trojan without any certificates/shadow-tls/res-tls/jls/reality/ss/allow-insecure config")
+		}
+		if wrap != nil {
+			l, err = wrap(l)
+			if err != nil {
+				return nil, err
+			}
 		}
 		sl.listeners = append(sl.listeners, l)
 

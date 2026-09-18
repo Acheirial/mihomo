@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/metacubex/mihomo/component/resolver"
@@ -56,16 +57,42 @@ func (c *client) ExchangeContext(ctx context.Context, m *D.Msg) (*D.Msg, error) 
 	}
 
 	reuse := c.schema == "udp"
+
+	// The background exchange goroutine is the sole owner of conn for the
+	// duration of the exchange: miekg/dns ignores ctx cancellation, so the
+	// exchange runs to completion (bounded by the 5s timeout) unless conn is
+	// closed. On ctx cancellation the select below closes conn, which unblocks
+	// the goroutine's in-flight read and lets it finish immediately. done is
+	// closed once the goroutine is finished with conn, so the deferred release
+	// below only ever touches a conn that is actually idle.
+	done := make(chan struct{})
+	var mu sync.Mutex
+	var released bool // true once conn has been released (by either path)
+
+	releaseConn := func(keep bool) {
+		mu.Lock()
+		defer mu.Unlock()
+		if released {
+			return
+		}
+		released = true
+		if c.schema != "udp" {
+			_ = conn.Close()
+		} else {
+			c.pool.Release(conn, keep)
+		}
+	}
+
 	defer func() {
-		if reuse {
-			c.pool.Release(conn, true)
-			return
+		// Wait for the goroutine to be done with conn before handing it back.
+		// The exchange is bounded by dClient.Timeout, so this is a bounded wait
+		// and a wedged exchange cannot keep the caller forever.
+		select {
+		case <-done:
+		case <-time.After(dnsClientTimeout):
+			reuse = false
 		}
-		if c.schema == "udp" {
-			c.pool.Release(conn, false)
-			return
-		}
-		_ = conn.Close()
+		releaseConn(reuse)
 	}()
 
 	// miekg/dns ExchangeContext doesn't respond to context cancel.
@@ -78,9 +105,10 @@ func (c *client) ExchangeContext(ctx context.Context, m *D.Msg) (*D.Msg, error) 
 	}
 	ch := make(chan result, 1)
 	go func() {
+		defer close(done)
 		dClient := &D.Client{
 			UDPSize: 4096,
-			Timeout: 5 * time.Second,
+			Timeout: dnsClientTimeout,
 		}
 		dConn := &D.Conn{
 			Conn:    conn,
@@ -93,6 +121,10 @@ func (c *client) ExchangeContext(ctx context.Context, m *D.Msg) (*D.Msg, error) 
 		if msg != nil && msg.Truncated && network == "udp" {
 			network = "tcp"
 			log.Debugln("[DNS] Truncated reply from %s:%s for %s over UDP, retrying over TCP", c.host, c.port, m.Question[0].String())
+			// The exchange continues over TCP: drop the UDP conn from the pool
+			// now (a truncated reply means the path is not safe to reuse) and
+			// mark it released so the outer defer never double-releases it.
+			releaseConn(false)
 			var tcpConn net.Conn
 			tcpConn, err = c.dialer.DialContext(ctx, network, addr)
 			if err != nil {
@@ -110,6 +142,13 @@ func (c *client) ExchangeContext(ctx context.Context, m *D.Msg) (*D.Msg, error) 
 
 	select {
 	case <-ctx.Done():
+		// The query was abandoned on conn, so it must not be reused. Closing it
+		// here unblocks the goroutine's in-flight read immediately (miekg
+		// returns a use-of-closed-conn error) so the goroutine finishes and
+		// closes done within milliseconds, instead of hanging until the 5s
+		// exchange timeout on a server that never replies. The outer defer's
+		// releaseConn call below then becomes a no-op via the released flag.
+		releaseConn(false)
 		reuse = false
 		return nil, ctx.Err()
 	case ret := <-ch:
@@ -118,9 +157,8 @@ func (c *client) ExchangeContext(ctx context.Context, m *D.Msg) (*D.Msg, error) 
 		}
 		if ret.err != nil || ret.dropUDP {
 			reuse = false
-			return ret.msg, ret.err
 		}
-		return ret.msg, nil
+		return ret.msg, ret.err
 	}
 }
 

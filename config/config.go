@@ -105,6 +105,10 @@ type Experimental struct {
 	QUICGoDisableECN          bool
 	IP4PEnable                bool
 	DisableConnectionTracking bool
+	// GOMemoryLimit is the Go runtime soft memory limit in MiB; 0 leaves the runtime default unset.
+	GOMemoryLimit uint64
+	// GOGCPercent is the Go runtime GC trigger percentage; 0 leaves the runtime default unset.
+	GOGCPercent int
 }
 
 // IPTables config
@@ -340,6 +344,8 @@ type RawExperimental struct {
 	QUICGoDisableECN          bool     `yaml:"quic-go-disable-ecn" json:"quic-go-disable-ecn"`
 	IP4PEnable                bool     `yaml:"dialer-ip4p-convert" json:"dialer-ip4p-convert"`
 	DisableConnectionTracking bool     `yaml:"disable-connection-tracking" json:"disable-connection-tracking"`
+	GOMemoryLimit             uint64   `yaml:"go-memory-limit" json:"go-memory-limit"` // MiB, 0 = unset
+	GOGCPercent               int      `yaml:"go-gc-percent" json:"go-gc-percent"`     // 0 = unset
 }
 
 type RawProfile struct {

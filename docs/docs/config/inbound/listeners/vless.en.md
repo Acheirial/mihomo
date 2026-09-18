@@ -15,6 +15,7 @@ listeners:
       flow: xtls-rprx-vision
   # ws-path: "/" # if not empty, enables websocket transport layer
   # grpc-service-name: "GunService" # if not empty, enables grpc transport layer
+  # mkcp-config/mekya-config: Optional; when enabled, listens on UDP and cannot be used together with shadow-tls/res-tls/jls-config. See [Inbound Transport](./transport.en.md)
   # xhttp-config: # If the field is not empty, enable the xhttp transport layer.
   #   path: "/"
   #   host: ""

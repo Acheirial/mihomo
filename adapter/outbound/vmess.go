@@ -11,8 +11,8 @@ import (
 
 	N "github.com/metacubex/mihomo/common/net"
 	"github.com/metacubex/mihomo/common/utils"
-	C "github.com/metacubex/mihomo/constant"
 	"github.com/metacubex/mihomo/component/proxydialer"
+	C "github.com/metacubex/mihomo/constant"
 	"github.com/metacubex/mihomo/ntp"
 	"github.com/metacubex/mihomo/transport/mekya"
 	"github.com/metacubex/mihomo/transport/mkcp"
@@ -219,7 +219,6 @@ func (v *Vmess) streamConnContext(ctx context.Context, c net.Conn, metadata *C.M
 func (v *Vmess) dialContext(ctx context.Context) (c net.Conn, err error) {
 	return v.stack.Dial(ctx)
 }
-
 
 // DialContext implements C.ProxyAdapter
 func (v *Vmess) DialContext(ctx context.Context, metadata *C.Metadata) (_ C.Conn, err error) {

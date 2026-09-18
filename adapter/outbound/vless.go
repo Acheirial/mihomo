@@ -170,7 +170,6 @@ func (v *Vless) dialContext(ctx context.Context) (c net.Conn, err error) {
 	return v.stack.Dial(ctx)
 }
 
-
 // DialContext implements C.ProxyAdapter
 func (v *Vless) DialContext(ctx context.Context, metadata *C.Metadata) (_ C.Conn, err error) {
 	c, err := v.dialContext(ctx)

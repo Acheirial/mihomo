@@ -7,6 +7,7 @@ listeners:
   port: 10818
   listen: 0.0.0.0
   # routing-mark: 0 # устанавливает routing-mark для слушающего сокета (только для Linux)
+  # mkcp-config/mekya-config: Необязательно; при включении прослушивает UDP и не может использоваться одновременно с shadow-tls/res-tls/jls-config. См. [Входящий транспорт](./transport.ru.md)
   # Если "shadow-tls", "res-tls" и "jls-config" отключены и "allow-insecure" не равен true, необходимо заполнить "certificate" и "private-key"; не заполняйте их, если включены ShadowTLS, ResTLS или JLS
   users:
     username1: password1

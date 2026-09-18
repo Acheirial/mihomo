@@ -10,6 +10,7 @@ listeners:
   cipher: 2022-blake3-aes-256-gcm
   password: vlmpIPSyHH6f4S8WVPdRIHIlzmB+GIRfoH3aNJ/t9Gg=
   udp: true
+  # mkcp-config/mekya-config: Необязательно; при включении прослушивает UDP и не может использоваться одновременно с shadow-tls/res-tls/jls-config. См. [Входящий транспорт](./transport.ru.md)
   # simple-obfs:
   #   enable: false # Установите true для включения
   #   mode: http # Возможные значения: http, tls

@@ -15,6 +15,7 @@ listeners:
       flow: xtls-rprx-vision
   # ws-path: "/" # 如果不为空则开启 websocket 传输层
   # grpc-service-name: "GunService" # 如果不为空则开启 grpc 传输层
+  # mkcp-config/mekya-config: 可选，启用后监听 UDP，不可与 shadow-tls/res-tls/jls-config 同时使用，详见 [传输层配置](./transport.md)
   # xhttp-config: # 如果不为空则开启 xhttp 传输层
   #   path: "/"
   #   host: ""

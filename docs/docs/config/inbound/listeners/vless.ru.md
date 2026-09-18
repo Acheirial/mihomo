@@ -15,6 +15,7 @@ listeners:
       flow: xtls-rprx-vision
   # ws-path: "/" # если не пусто, то включается транспортный уровень websocket
   # grpc-service-name: "GunService" # если не пусто, то включается транспортный уровень grpc
+  # mkcp-config/mekya-config: Необязательно; при включении прослушивает UDP и не может использоваться одновременно с shadow-tls/res-tls/jls-config. См. [Входящий транспорт](./transport.ru.md)
   # xhttp-config: # Если поле не пустое, включите транспортный уровень xhttp.
   #   path: "/"
   #   host: ""

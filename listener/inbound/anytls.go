@@ -22,6 +22,10 @@ type AnyTLSOption struct {
 	JLSConfig      JLSConfig         `inbound:"jls-config,omitempty"`
 	AllowInsecure  bool              `inbound:"allow-insecure,omitempty"`
 	PaddingScheme  string            `inbound:"padding-scheme,omitempty"`
+	// mkcp/mekya 不支持与 shadow-tls/res-tls/jls 同时使用
+	MekyaConfig MekyaConfig `inbound:"mekya-config,omitempty"`
+	// mkcp/mekya 不支持与 shadow-tls/res-tls/jls 同时使用
+	MKCPConfig MKCPConfig `inbound:"mkcp-config,omitempty"`
 }
 
 func (o AnyTLSOption) Equal(config C.InboundConfig) bool {
@@ -55,8 +59,10 @@ func NewAnyTLS(options *AnyTLSOption) (*AnyTLS, error) {
 			ShadowTLS:      options.ShadowTLS.Build(),
 			ResTLS:         options.ResTLS.Build(),
 			JLSConfig:      options.JLSConfig.Build(),
-			AllowInsecure:  options.AllowInsecure,
 			PaddingScheme:  options.PaddingScheme,
+			// mkcp/mekya 不支持与 shadow-tls/res-tls/jls 同时使用
+			MekyaConfig: options.MekyaConfig.Build(),
+			MKCPConfig:  options.MKCPConfig.Build(),
 		},
 	}, nil
 }

@@ -7,7 +7,13 @@ import (
 	"time"
 )
 
+// dnsUDPIdleTimeout bounds how long a pooled UDP conn is reused between exchanges.
 const dnsUDPIdleTimeout = 30 * time.Second
+
+// dnsClientTimeout bounds a single miekg/dns exchange (see client.go): it is
+// also the upper bound the caller waits for the background exchange goroutine
+// to release its conn.
+const dnsClientTimeout = 5 * time.Second
 
 type udpConnPool struct {
 	mu   sync.Mutex

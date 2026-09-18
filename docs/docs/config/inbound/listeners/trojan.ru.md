@@ -14,6 +14,7 @@ listeners:
       password: 9d0cb9d0-964f-4ef6-897d-6c6b3ccf9e68
   # ws-path: "/" # если не пусто, то включается транспортный уровень websocket
   # grpc-service-name: "GunService" # если не пусто, то включается транспортный уровень grpc
+  # mkcp-config/mekya-config: Необязательно; при включении прослушивает UDP и не может использоваться одновременно с shadow-tls/res-tls/jls-config. См. [Входящий транспорт](./transport.ru.md)
   # следующие два параметра, если заполнены, включают tls (необходимо заполнить оба)
   certificate: ./server.crt # сертификат в формате PEM или путь к сертификату
   private-key: ./server.key # приватный ключ сертификата в формате PEM или путь к приватному ключу

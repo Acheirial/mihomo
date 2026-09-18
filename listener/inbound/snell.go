@@ -19,6 +19,10 @@ type SnellOption struct {
 	ShadowTLS ShadowTLS       `inbound:"shadow-tls,omitempty"`
 	ResTLS    ResTLS          `inbound:"res-tls,omitempty"`
 	JLSConfig JLSConfig       `inbound:"jls-config,omitempty"`
+	// mkcp/mekya 不支持与 shadow-tls/res-tls/jls 同时使用
+	MekyaConfig MekyaConfig `inbound:"mekya-config,omitempty"`
+	// mkcp/mekya 不支持与 shadow-tls/res-tls/jls 同时使用
+	MKCPConfig MKCPConfig `inbound:"mkcp-config,omitempty"`
 }
 
 func (o SnellOption) Equal(config C.InboundConfig) bool {
@@ -62,6 +66,9 @@ func NewSnell(options *SnellOption) (*Snell, error) {
 			ShadowTLS: options.ShadowTLS.Build(),
 			ResTLS:    options.ResTLS.Build(),
 			JLSConfig: options.JLSConfig.Build(),
+			// mkcp/mekya 不支持与 shadow-tls/res-tls/jls 同时使用
+			MekyaConfig: options.MekyaConfig.Build(),
+			MKCPConfig:  options.MKCPConfig.Build(),
 		},
 	}, nil
 }

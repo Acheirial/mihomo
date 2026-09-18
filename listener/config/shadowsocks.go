@@ -18,6 +18,10 @@ type ShadowsocksServer struct {
 	JLSConfig  JLSConfig      `yaml:"jls-config" json:"jls-config,omitempty"`
 	KcpTun     KcpTun         `yaml:"kcp-tun" json:"kcp-tun,omitempty"`
 	SimpleObfs SimpleObfs     `yaml:"simple-obfs" json:"simple-obfs,omitempty"`
+	// mkcp/mekya 不支持与 shadow-tls/res-tls/jls 同时使用
+	MekyaConfig MekyaConfig `yaml:"mekya-config" json:"mekya-config,omitempty"`
+	// mkcp/mekya 不支持与 shadow-tls/res-tls/jls 同时使用
+	MKCPConfig MKCPConfig `yaml:"mkcp-config" json:"mkcp-config,omitempty"`
 }
 
 type SimpleObfs struct {

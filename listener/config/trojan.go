@@ -28,8 +28,12 @@ type TrojanServer struct {
 	ResTLS          ResTLS         `yaml:"res-tls" json:"res-tls,omitempty"`
 	JLSConfig       JLSConfig      `yaml:"jls-config" json:"jls-config,omitempty"`
 	RealityConfig   reality.Config `yaml:"reality-config" json:"reality-config,omitempty"`
-	MuxOption       sing.MuxOption
-	TrojanSSOption  TrojanSSOption
+	// mkcp/mekya 不支持与 shadow-tls/res-tls/jls 同时使用
+	MekyaConfig MekyaConfig `yaml:"mekya-config" json:"mekya-config,omitempty"`
+	// mkcp/mekya 不支持与 shadow-tls/res-tls/jls 同时使用
+	MKCPConfig     MKCPConfig `yaml:"mkcp-config" json:"mkcp-config,omitempty"`
+	MuxOption      sing.MuxOption
+	TrojanSSOption TrojanSSOption
 }
 
 // TrojanSSOption from https://github.com/p4gefau1t/trojan-go/blob/v0.10.6/tunnel/shadowsocks/config.go#L5

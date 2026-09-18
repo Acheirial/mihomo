@@ -12,6 +12,7 @@ import (
 	LC "github.com/metacubex/mihomo/listener/config"
 	"github.com/metacubex/mihomo/listener/jls"
 	"github.com/metacubex/mihomo/listener/restls"
+	"github.com/metacubex/mihomo/listener/security"
 	embedSS "github.com/metacubex/mihomo/listener/shadowsocks"
 	"github.com/metacubex/mihomo/listener/shadowtls"
 	"github.com/metacubex/mihomo/listener/sing"
@@ -85,18 +86,8 @@ func New(config LC.ShadowsocksServer, lc C.InboundListenConfig, tunnel C.Tunnel,
 		return nil, err
 	}
 
-	securityModes := make([]string, 0, 3)
-	if config.ShadowTLS.Enable {
-		securityModes = append(securityModes, "shadow-tls")
-	}
-	if config.ResTLS.Enable {
-		securityModes = append(securityModes, "res-tls")
-	}
-	if config.JLSConfig.Enable {
-		securityModes = append(securityModes, "jls")
-	}
-	if len(securityModes) > 1 {
-		return nil, fmt.Errorf("security modes are mutually exclusive: %s", strings.Join(securityModes, ", "))
+	if err := security.CheckExclusive(security.Modes(false, config.ShadowTLS.Enable, config.ResTLS.Enable, config.JLSConfig.Enable, false, false)); err != nil {
+		return nil, err
 	}
 
 	var shadowTLSBuilder *shadowtls.Builder
@@ -206,13 +197,11 @@ func New(config LC.ShadowsocksServer, lc C.InboundListenConfig, tunnel C.Tunnel,
 		if err != nil {
 			return nil, err
 		}
-		if shadowTLSBuilder != nil {
-			l = shadowTLSBuilder.NewListener(l)
-		} else if restlsBuilder != nil {
-			l = restlsBuilder.NewListener(l)
-		} else if jlsBuilder != nil {
-			l = jlsBuilder.NewListener(l)
-		}
+		l = security.WrapListener(l, security.Builders{
+			ShadowTLS: shadowTLSBuilder,
+			RestLS:    restlsBuilder,
+			JLS:       jlsBuilder,
+		}, nil)
 		sl.listeners = append(sl.listeners, l)
 
 		go func() {
