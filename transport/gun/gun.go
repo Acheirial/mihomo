@@ -18,7 +18,6 @@ import (
 
 	"github.com/metacubex/mihomo/common/buf"
 	"github.com/metacubex/mihomo/common/httputils"
-	"github.com/metacubex/mihomo/common/pool"
 	tlsC "github.com/metacubex/mihomo/component/tls"
 	C "github.com/metacubex/mihomo/constant"
 	"github.com/metacubex/mihomo/transport/vmess"
@@ -132,28 +131,11 @@ func (g *Conn) read(b []byte) (n int, err error) {
 }
 
 func (g *Conn) Write(b []byte) (n int, err error) {
-	dataLen := len(b)
-	varLen := UVarintLen(uint64(dataLen))
-	buf := pool.Get(5 + 1 + varLen + dataLen)
-	defer pool.Put(buf)
-	_ = buf[6] // bounds check hint to compiler
-	buf[0] = 0x00
-	binary.BigEndian.PutUint32(buf[1:5], uint32(1+varLen+dataLen))
-	buf[5] = 0x0A
-	binary.PutUvarint(buf[6:], uint64(dataLen))
-	copy(buf[6+varLen:], b)
-
-	_, err = g.writer.Write(buf)
-	if err == io.ErrClosedPipe {
-		if initErr := g.Init(); initErr != nil {
-			err = initErr
-		}
-	}
-
-	if flusher, ok := g.writer.(http.Flusher); ok {
-		flusher.Flush()
-	}
-
+	headroom := g.FrontHeadroom()
+	buffer := buf.NewSize(headroom + len(b))
+	buffer.Resize(headroom, 0)
+	buffer.Write(b)
+	err = g.WriteBuffer(buffer)
 	return len(b), err
 }
 

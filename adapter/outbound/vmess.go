@@ -162,57 +162,26 @@ func (v *Vmess) StreamConnContext(ctx context.Context, c net.Conn, metadata *C.M
 }
 
 func (v *Vmess) streamConnContext(ctx context.Context, c net.Conn, metadata *C.Metadata) (conn net.Conn, err error) {
-	useEarly := N.NeedHandshake(c)
-	if !useEarly {
-		if ctx.Done() != nil {
-			done := N.SetupContextForConn(ctx, c)
-			defer done(&err)
-		}
-	}
 	if metadata.NetWork == C.UDP {
 		if v.option.XUDP {
 			var globalID [8]byte
 			if metadata.SourceValid() {
 				globalID = utils.GlobalID(metadata.SourceAddress())
 			}
-			if useEarly {
-				conn = v.client.DialEarlyXUDPPacketConn(c,
-					globalID,
-					M.SocksaddrFromNet(metadata.UDPAddr()))
-			} else {
-				conn, err = v.client.DialXUDPPacketConn(c,
-					globalID,
-					M.SocksaddrFromNet(metadata.UDPAddr()))
-			}
+			conn = v.client.DialEarlyXUDPPacketConn(c,
+				globalID,
+				M.SocksaddrFromNet(metadata.UDPAddr()))
 		} else if v.option.PacketAddr {
-			if useEarly {
-				conn = v.client.DialEarlyPacketConn(c,
-					M.ParseSocksaddrHostPort(packetaddr.SeqPacketMagicAddress, 443))
-			} else {
-				conn, err = v.client.DialPacketConn(c,
-					M.ParseSocksaddrHostPort(packetaddr.SeqPacketMagicAddress, 443))
-			}
+			conn = v.client.DialEarlyPacketConn(c,
+				M.ParseSocksaddrHostPort(packetaddr.SeqPacketMagicAddress, 443))
 			conn = packetaddr.NewBindConn(conn)
 		} else {
-			if useEarly {
-				conn = v.client.DialEarlyPacketConn(c,
-					M.SocksaddrFromNet(metadata.UDPAddr()))
-			} else {
-				conn, err = v.client.DialPacketConn(c,
-					M.SocksaddrFromNet(metadata.UDPAddr()))
-			}
+			conn = v.client.DialEarlyPacketConn(c,
+				M.SocksaddrFromNet(metadata.UDPAddr()))
 		}
 	} else {
-		if useEarly {
-			conn = v.client.DialEarlyConn(c,
-				M.ParseSocksaddrHostPort(metadata.String(), metadata.DstPort))
-		} else {
-			conn, err = v.client.DialConn(c,
-				M.ParseSocksaddrHostPort(metadata.String(), metadata.DstPort))
-		}
-	}
-	if err != nil {
-		conn = nil
+		conn = v.client.DialEarlyConn(c,
+			M.ParseSocksaddrHostPort(metadata.String(), metadata.DstPort))
 	}
 	return
 }

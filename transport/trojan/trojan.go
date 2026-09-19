@@ -9,6 +9,7 @@ import (
 	"net"
 	"sync"
 
+	"github.com/metacubex/mihomo/common/buf"
 	N "github.com/metacubex/mihomo/common/net"
 	"github.com/metacubex/mihomo/common/pool"
 	"github.com/metacubex/mihomo/transport/socks5"
@@ -49,6 +50,113 @@ func WriteHeader(w io.Writer, hexPassword [KeyLength]byte, command Command, sock
 
 	_, err := w.Write(buf.Bytes())
 	return err
+}
+
+const clientConnFrontHeadroom = KeyLength + 2 + 1 + socks5.MaxAddrLen + 2
+
+var _ N.ExtendedConn = (*ClientConn)(nil)
+
+// ClientConn delays the Trojan protocol header until the first Write.
+// Closing without a Write sends nothing to the server.
+type ClientConn struct {
+	N.ExtendedConn
+	key           [KeyLength]byte
+	command       Command
+	socks5Addr    []byte
+	headerWritten bool
+}
+
+func NewClientConn(conn net.Conn, key [KeyLength]byte, command Command, socks5Addr []byte) *ClientConn {
+	return &ClientConn{
+		ExtendedConn: N.NewExtendedConn(conn),
+		key:          key,
+		command:      command,
+		socks5Addr:   socks5Addr,
+	}
+}
+
+func (c *ClientConn) NeedHandshake() bool {
+	return !c.headerWritten
+}
+
+func (c *ClientConn) NeedHandshakeForWrite() bool {
+	return !c.headerWritten
+}
+
+func (c *ClientConn) writeHeader(payload []byte) error {
+	headerLen := KeyLength + 2 + 1 + len(c.socks5Addr) + 2
+	buffer := buf.NewSize(headerLen + len(payload))
+	defer buffer.Release()
+	buf.Must(
+		buf.Error(buffer.Write(c.key[:])),
+		buf.Error(buffer.Write(crlf)),
+		buffer.WriteByte(c.command),
+		buf.Error(buffer.Write(c.socks5Addr)),
+		buf.Error(buffer.Write(crlf)),
+		buf.Error(buffer.Write(payload)),
+	)
+	_, err := c.ExtendedConn.Write(buffer.Bytes())
+	return err
+}
+
+func (c *ClientConn) Write(p []byte) (n int, err error) {
+	if c.headerWritten {
+		return c.ExtendedConn.Write(p)
+	}
+	err = c.writeHeader(p)
+	if err != nil {
+		return
+	}
+	n = len(p)
+	c.headerWritten = true
+	return
+}
+
+func (c *ClientConn) WriteBuffer(buffer *buf.Buffer) error {
+	if c.headerWritten {
+		return c.ExtendedConn.WriteBuffer(buffer)
+	}
+	headerLen := KeyLength + 2 + 1 + len(c.socks5Addr) + 2
+	if buffer.Start() >= headerLen {
+		header := buffer.ExtendHeader(headerLen)
+		copy(header, c.key[:])
+		copy(header[KeyLength:], crlf)
+		header[KeyLength+2] = c.command
+		copy(header[KeyLength+3:], c.socks5Addr)
+		copy(header[headerLen-2:], crlf)
+		err := c.ExtendedConn.WriteBuffer(buffer)
+		if err != nil {
+			return err
+		}
+		c.headerWritten = true
+		return nil
+	}
+	err := c.writeHeader(buffer.Bytes())
+	if err != nil {
+		return err
+	}
+	buffer.Advance(buffer.Len())
+	c.headerWritten = true
+	return nil
+}
+
+func (c *ClientConn) FrontHeadroom() int {
+	if !c.headerWritten {
+		return clientConnFrontHeadroom
+	}
+	return 0
+}
+
+func (c *ClientConn) Upstream() any {
+	return c.ExtendedConn
+}
+
+func (c *ClientConn) ReaderReplaceable() bool {
+	return c.headerWritten
+}
+
+func (c *ClientConn) WriterReplaceable() bool {
+	return c.headerWritten
 }
 
 func writePacket(w io.Writer, socks5Addr, payload []byte) (int, error) {

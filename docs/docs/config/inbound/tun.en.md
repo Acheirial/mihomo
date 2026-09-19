@@ -78,13 +78,14 @@ Enable TUN mode.
 
 TUN mode protocol stack. If no usage issues occur, `mixed` stack is recommended. Default is `gvisor`.
 
-Available values: `system/gvisor/mixed/mips`
+Available values: `system/gvisor/mixed/mips/go`
 
 !!! note "Differences between protocol stacks"
     * `system` uses the system protocol stack, providing a more stable/comprehensive TUN experience with relatively lower resource usage compared to other stacks.
     * `gvisor` implements the network protocol stack in user space, offering higher security and isolation while avoiding context switching between the OS kernel and user space, which can yield better network processing performance under specific conditions.
     * `mixed` is a hybrid stack where TCP uses the `system` stack and UDP uses the `gvisor` stack, potentially delivering a better overall user experience.
     * `mips` uses the IP stack developed by mihomo.
+    * `go` is a pure-Go stack; on Linux DIRECT TCP/UDP can splice. Default remains gvisor; set `stack: go` to opt in. ICMP echo is answered locally, not forwarded via PrepareConnection.
     * [Simple Performance Test](#network-loopback-test-for-tun-protocol-stacks)
     * If the firewall is turned on, `system` and `mixed` protocol stacks cannot be used. Allow the core binary through the firewall using the following methods:
     * Windows: Settings -> Windows Security -> Allow an app through firewall -> Select the core binary.

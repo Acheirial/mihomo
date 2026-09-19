@@ -237,12 +237,18 @@ unified-delay: true
 
 ## TCP Concurrency
 
-Enable TCP concurrent connections, which will use all IP addresses resolved by DNS for connections, using the first successful connection.
+Controls how aggressively same-family addresses are raced. Default `false` **no longer waits for the first IP's connect timeout**. Connections use RFC 8305-style staggered dialing (300ms delay): a dead first A/AAAA fails over in delay magnitude instead of blocking for `DefaultTCPTimeout` (5s).
 
-Available values: `true/false`.
+`true` races same-family addresses with delay=0 (the old all-at-once SYN). Dual-stack still starts the preferred family immediately and the other family only after the delay — the fallback family must not SYN at t=0.
+
+TFO connections are always serial and inherit the caller context.
+
+Lock a family with per-node `ip-version`. Do not treat `tcp-concurrent` as the Happy Eyeballs on/off switch — HE is the default path.
+
+Available values: `true/false`. Default: `false`.
 
 ```{.yaml linenums="1"}
-tcp-concurrent: true
+tcp-concurrent: false
 ```
 
 ## Outbound Interface {#outbound-interface}

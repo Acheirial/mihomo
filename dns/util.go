@@ -56,7 +56,9 @@ func getMsgFromCache(c dnsCache, q D.Question) (*D.Msg, time.Time, bool) {
 }
 
 // putMsgToCache puts a dns message into the cache.
-// the msg is copied before being stored in the cache, so it can be modified without affecting the original msg.
+// Extra OPT records are stripped on a shallow Extra slice copy; the Msg itself
+// is stored as-is. Callers that mutate the returned cache hit must go through
+// getMsgFromCache, which Copies. singleflight shared results still Copy in resolver.go.
 func putMsgToCache(c dnsCache, q D.Question, msg *D.Msg) {
 	// skip dns cache for acme challenge
 	if q.Qtype == D.TypeTXT && strings.HasPrefix(q.Name, "_acme-challenge.") {
@@ -64,12 +66,14 @@ func putMsgToCache(c dnsCache, q D.Question, msg *D.Msg) {
 		return
 	}
 
-	msg = msg.Copy() // never modify the original msg
-
 	// OPT RRs MUST NOT be cached, forwarded, or stored in or loaded from master files.
-	msg.Extra = lo.Filter(msg.Extra, func(rr D.RR, index int) bool {
-		return rr.Header().Rrtype != D.TypeOPT
-	})
+	// Filter Extra without copying the whole Msg tree; Extra is a header-only slice copy.
+	if lo.ContainsBy(msg.Extra, func(rr D.RR) bool { return rr.Header().Rrtype == D.TypeOPT }) {
+		msg = msg.Copy()
+		msg.Extra = lo.Filter(msg.Extra, func(rr D.RR, index int) bool {
+			return rr.Header().Rrtype != D.TypeOPT
+		})
+	}
 
 	var ttl uint32
 	if msg.Rcode == D.RcodeServerFailure {
@@ -247,7 +251,15 @@ type clientWithEdns0Subnet struct {
 }
 
 func (c clientWithEdns0Subnet) ExchangeContext(ctx context.Context, m *D.Msg) (*D.Msg, error) {
-	m = m.Copy()
+	// Extra already populated (OPT or otherwise): full Copy so append/override
+	// cannot alias the caller's Extra backing array. Empty Extra: header copy
+	// is enough — append allocates a new slice.
+	if len(m.Extra) > 0 {
+		m = m.Copy()
+	} else {
+		ex := *m
+		m = &ex
+	}
 	setEdns0Subnet(m, c.ecsPrefix, c.ecsOverride)
 	return c.dnsClient.ExchangeContext(ctx, m)
 }

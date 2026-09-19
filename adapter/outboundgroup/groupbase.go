@@ -36,7 +36,7 @@ type GroupBase struct {
 	emptyFallback     C.Proxy
 
 	// for GetProxies
-	getProxiesMutex  sync.Mutex
+	getProxiesMutex  sync.RWMutex
 	providerVersions []uint32
 	providerProxies  []C.Proxy
 }
@@ -119,20 +119,34 @@ func (gb *GroupBase) Touch() {
 	}
 }
 
+func (gb *GroupBase) providersVersion() uint32 {
+	var v uint32
+	for _, pd := range gb.providers {
+		v += pd.Version()
+	}
+	return v
+}
+
 func (gb *GroupBase) GetProxies(touch bool) []C.Proxy {
 	providerVersions := make([]uint32, len(gb.providers))
 	for i, pd := range gb.providers {
-		if touch { // touch first
+		if touch {
 			pd.Touch()
 		}
 		providerVersions[i] = pd.Version()
 	}
 
-	// thread safe
+	gb.getProxiesMutex.RLock()
+	if slices.Equal(providerVersions, gb.providerVersions) {
+		proxies := gb.providerProxies
+		gb.getProxiesMutex.RUnlock()
+		return proxies
+	}
+	gb.getProxiesMutex.RUnlock()
+
 	gb.getProxiesMutex.Lock()
 	defer gb.getProxiesMutex.Unlock()
 
-	// return the cached proxies if version not changed
 	if slices.Equal(providerVersions, gb.providerVersions) {
 		return gb.providerProxies
 	}

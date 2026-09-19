@@ -797,7 +797,7 @@ func (w *WireGuard) DialContext(ctx context.Context, metadata *C.Metadata) (_ C.
 		return nil, err
 	}
 	if !metadata.Resolved() || w.resolver != nil {
-		r := resolver.DefaultResolver
+		r := resolver.DefaultResolver.Load()
 		if w.resolver != nil {
 			r = w.resolver
 		}
@@ -838,7 +838,7 @@ func (w *WireGuard) ListenPacketContext(ctx context.Context, metadata *C.Metadat
 
 func (w *WireGuard) ResolveUDP(ctx context.Context, metadata *C.Metadata) error {
 	if (!metadata.Resolved() || w.resolver != nil) && metadata.Host != "" {
-		r := resolver.DefaultResolver
+		r := resolver.DefaultResolver.Load()
 		if w.resolver != nil {
 			r = w.resolver
 		}

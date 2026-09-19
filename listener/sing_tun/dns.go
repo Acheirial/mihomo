@@ -12,11 +12,14 @@ import (
 	"github.com/metacubex/mihomo/listener/sing"
 	"github.com/metacubex/mihomo/log"
 
+	tun "github.com/metacubex/sing-tun"
 	"github.com/metacubex/sing/common/buf"
 	"github.com/metacubex/sing/common/bufio"
 	M "github.com/metacubex/sing/common/metadata"
 	"github.com/metacubex/sing/common/network"
 )
+
+var _ tun.HandlerEx = (*ListenerHandler)(nil)
 
 func (h *ListenerHandler) ShouldHijackDns(targetAddr netip.AddrPort) bool {
 	for _, addrPort := range h.DnsAddrPorts {
@@ -141,4 +144,35 @@ func (h *ListenerHandler) TypeMutation(typ C.Type) *ListenerHandler {
 	handle := *h
 	handle.ListenerHandler = h.ListenerHandler.TypeMutation(typ)
 	return &handle
+}
+
+func (h *ListenerHandler) JudgeFlow(network uint8, source, destination netip.AddrPort, firstPacket []byte) tun.FlowVerdict {
+	if network == 17 && h.ShouldHijackDns(destination) {
+		return tun.FlowVerdict{Action: tun.ActionHijackDNS}
+	}
+	return tun.FlowVerdict{Action: tun.ActionAccept}
+}
+
+func (h *ListenerHandler) NewDNSPacket(payload []byte, source, dest M.Socksaddr, writer network.PacketWriter) {
+	buffer := buf.As(append([]byte(nil), payload...)).ToOwned()
+	w := writer
+	go relayDnsPacket(context.TODO(), buffer, network.ReadWaitOptions{MTU: resolver.SafeDnsPacketSize}, dest, nil, &w)
+}
+
+func (h *ListenerHandler) NewConnectionEx(ctx context.Context, conn net.Conn, source M.Socksaddr, destination M.Socksaddr, onClose tun.CloseHandlerFunc) {
+	metadata := M.Metadata{Source: source, Destination: destination}
+	var err error
+	if onClose != nil {
+		defer func() { onClose(err) }()
+	}
+	err = h.NewConnection(ctx, conn, metadata)
+}
+
+func (h *ListenerHandler) NewPacketConnectionEx(ctx context.Context, conn network.PacketConn, source M.Socksaddr, destination M.Socksaddr, onClose tun.CloseHandlerFunc) {
+	metadata := M.Metadata{Source: source, Destination: destination}
+	var err error
+	if onClose != nil {
+		defer func() { onClose(err) }()
+	}
+	err = h.NewPacketConnection(ctx, conn, metadata)
 }

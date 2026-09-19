@@ -3,6 +3,7 @@ package statistic
 import (
 	"io"
 	"net"
+	"syscall"
 	"time"
 
 	"github.com/metacubex/mihomo/common/atomic"
@@ -12,6 +13,7 @@ import (
 	C "github.com/metacubex/mihomo/constant"
 
 	"github.com/gofrs/uuid/v5"
+	"github.com/metacubex/sing/common/network"
 )
 
 type Tracker interface {
@@ -119,6 +121,21 @@ func (tt *tcpTracker) Upstream() any {
 	return tt.Conn
 }
 
+func (tt *tcpTracker) ReaderReplaceable() bool {
+	return true
+}
+
+func (tt *tcpTracker) WriterReplaceable() bool {
+	return true
+}
+
+func (tt *tcpTracker) SyscallConn() (syscall.RawConn, error) {
+	if sc, ok := tt.Conn.(syscall.Conn); ok {
+		return sc.SyscallConn()
+	}
+	return nil, syscall.EINVAL
+}
+
 func NewTCPTracker(conn C.Conn, manager *Manager, metadata *C.Metadata, rule C.Rule, uploadTotal int64, downloadTotal int64, pushToManager bool) *tcpTracker {
 	metadata.RemoteDst = conn.RemoteDestination()
 
@@ -215,6 +232,40 @@ func (ut *udpTracker) Close() error {
 
 func (ut *udpTracker) Upstream() any {
 	return ut.PacketConn
+}
+
+func (ut *udpTracker) ReaderReplaceable() bool {
+	return true
+}
+
+func (ut *udpTracker) WriterReplaceable() bool {
+	return true
+}
+
+func (ut *udpTracker) UnwrapPacketReader() (network.PacketReader, []N.CountFunc) {
+	count := []N.CountFunc{func(download int64) {
+		if ut.pushToManager {
+			ut.manager.PushDownloaded(download)
+		}
+		ut.DownloadTotal.Add(download)
+	}}
+	if r, ok := ut.PacketConn.(network.PacketReader); ok {
+		return r, count
+	}
+	return nil, count
+}
+
+func (ut *udpTracker) UnwrapPacketWriter() (network.PacketWriter, []N.CountFunc) {
+	count := []N.CountFunc{func(upload int64) {
+		if ut.pushToManager {
+			ut.manager.PushUploaded(upload)
+		}
+		ut.UploadTotal.Add(upload)
+	}}
+	if w, ok := ut.PacketConn.(network.PacketWriter); ok {
+		return w, count
+	}
+	return nil, count
 }
 
 func NewUDPTracker(conn C.PacketConn, manager *Manager, metadata *C.Metadata, rule C.Rule, uploadTotal int64, downloadTotal int64, pushToManager bool) *udpTracker {

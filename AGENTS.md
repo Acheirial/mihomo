@@ -111,7 +111,7 @@ npx tsx .agents/skills/write-notes-like-deepseek/scripts/archive-agent-note.ts <
 
 ## 代码规范与常见模式
 
-- **Go 版本**：go.mod 要求较新 Go（CI 矩阵覆盖 1.20–1.26；代码保持兼容 1.20）。
+- **Go 版本**：go.mod 要求较新 Go（CI 矩阵覆盖 1.24–1.26；代码可使用 1.24 语言特性）。
 - **import 别名**：单字母别名是本仓库惯例——`C constant`、`P constant/provider`、`N common/net`、`LC listener/config`、`D miekg/dns`、`M sing metadata`、`icontext context`。
 - **import 顺序**（gci 强制）：标准库 → `github.com/metacubex/mihomo/*` → 第三方。mihomo 自身 import 排在外部依赖**之前**。
 - **格式化/lint**（`.golangci.yaml`，根目录与 `test/` 相同）：`disable-all` + gofumpt、govet、gci、staticcheck。
@@ -155,5 +155,5 @@ npx tsx .agents/skills/write-notes-like-deepseek/scripts/archive-agent-note.ts <
 - **单元测试**：根 module，标准 `testing` + `testify`（`assert`/`require`），`t.Run` 表驱动；测试与被测同包；fixture 与测试同目录。`go test ./... -v -count=1`。
 - **集成测试**：`test/` module，`package main`，Docker SDK 驱动——没有 Docker daemon 时 `init()` 直接 panic。运行真实协议服务端容器 + 共享 `testSuit`（TCP/UDP pingpong + 大流量传输）。`cd test && make test`（串行，`-p 1`）。**CI 不跑这套**——手动套件。
 - 根 module 测试的环境变量开关：`SKIP_INTEROP_TEST=1`（跳过 listener/inbound 互操作测试）、`SKIP_CONCURRENT_TEST=1`。
-- CI（`.github/workflows/test.yml`）：6 系统 × Go 1.20–1.26，`CGO_ENABLED=0`，带/不带 `with_gvisor` 各跑一遍；macOS 上删除 `listener/inbound/*_test.go`。无覆盖率工具和阈值。
+- CI（`.github/workflows/test.yml`）：6 系统 × Go 1.24–1.26，`CGO_ENABLED=0`，带/不带 `with_gvisor` 各跑一遍；macOS 上删除 `listener/inbound/*_test.go`。无覆盖率工具和阈值。
 - Lint：`golangci-lint run ./...`；`test/` module 在 `GOOS=darwin` 和 `GOOS=linux` 下各 lint 一遍。

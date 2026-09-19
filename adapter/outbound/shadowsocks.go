@@ -152,7 +152,6 @@ type kcpTunOption struct {
 
 // StreamConnContext implements C.ProxyAdapter
 func (ss *ShadowSocks) StreamConnContext(ctx context.Context, c net.Conn, metadata *C.Metadata) (_ net.Conn, err error) {
-	useEarly := false
 	switch ss.obfsMode {
 	case "tls":
 		c = obfs.NewTLSObfs(c, ss.obfsOption.Host)
@@ -175,40 +174,22 @@ func (ss *ShadowSocks) StreamConnContext(ctx context.Context, c net.Conn, metada
 		if err != nil {
 			return nil, err
 		}
-		useEarly = true
 	case restls.Mode:
 		c, err = restls.NewRestls(ctx, c, ss.restlsConfig)
 		if err != nil {
 			return nil, fmt.Errorf("%s (restls) connect error: %w", ss.addr, err)
 		}
-		useEarly = true
 	case jls.Mode:
 		c, err = jls.NewClient(ctx, c, ss.jlsConfig)
 		if err != nil {
 			return nil, fmt.Errorf("%s (jls) connect error: %w", ss.addr, err)
 		}
-		useEarly = true
-	}
-	useEarly = useEarly || N.NeedHandshake(c)
-	if !useEarly {
-		if ctx.Done() != nil {
-			done := N.SetupContextForConn(ctx, c)
-			defer done(&err)
-		}
 	}
 	if metadata.NetWork == C.UDP && ss.option.UDPOverTCP {
 		uotDestination := uot.RequestDestination(uint8(ss.option.UDPOverTCPVersion))
-		if useEarly {
-			return ss.method.DialEarlyConn(c, uotDestination), nil
-		} else {
-			return ss.method.DialConn(c, uotDestination)
-		}
+		return ss.method.DialEarlyConn(c, uotDestination), nil
 	}
-	if useEarly {
-		return ss.method.DialEarlyConn(c, M.ParseSocksaddrHostPort(metadata.String(), metadata.DstPort)), nil
-	} else {
-		return ss.method.DialConn(c, M.ParseSocksaddrHostPort(metadata.String(), metadata.DstPort))
-	}
+	return ss.method.DialEarlyConn(c, M.ParseSocksaddrHostPort(metadata.String(), metadata.DstPort)), nil
 }
 
 func (ss *ShadowSocks) dialContext(ctx context.Context) (c net.Conn, err error) {

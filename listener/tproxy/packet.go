@@ -1,7 +1,6 @@
 package tproxy
 
 import (
-	"errors"
 	"fmt"
 	"net"
 	"net/netip"
@@ -27,7 +26,7 @@ func (c *packet) Data() []byte {
 // WriteBack opens a new socket binding `addr` to write UDP packet back
 func (c *packet) WriteBack(b []byte, addr net.Addr) (n int, err error) {
 	rAddr := addr.(*net.UDPAddr).AddrPort() // tunnel's handleUDPToLocal will ensure addr is *net.UDPAddr
-	tc, err := createOrGetLocalConn(rAddr, c.lAddr, c.tunnel, c.additions...)
+	tc, err := createOrGetLocalConn(rAddr, c.lAddr, c.tunnel)
 	if err != nil {
 		return
 	}
@@ -52,7 +51,7 @@ func (c *packet) InAddr() net.Addr {
 // this function listen at rAddr and write to lAddr
 // for here, rAddr is the ip/port client want to access
 // lAddr is the ip/port client opened
-func createOrGetLocalConn(rAddr, lAddr netip.AddrPort, tunnel C.Tunnel, additions ...inbound.Addition) (*net.UDPConn, error) {
+func createOrGetLocalConn(rAddr, lAddr netip.AddrPort, tunnel C.Tunnel) (*net.UDPConn, error) {
 	remote := rAddr.String()
 	local := lAddr.String()
 	natTable := tunnel.NatTable()
@@ -77,9 +76,9 @@ func createOrGetLocalConn(rAddr, lAddr netip.AddrPort, tunnel C.Tunnel, addition
 				natTable.DeleteLockForLocalConn(local, remote)
 				cond.Broadcast()
 			}()
-			conn, err := listenLocalConn(rAddr, lAddr, tunnel, additions...)
+			conn, err := dialWriteBackConn(rAddr, lAddr)
 			if err != nil {
-				log.Errorln("listenLocalConn failed with error: %s, packet loss (rAddr[%T]=%s lAddr[%T]=%s)", err.Error(), rAddr, remote, lAddr, local)
+				log.Errorln("dialWriteBackConn failed with error: %s, packet loss (rAddr[%T]=%s lAddr[%T]=%s)", err.Error(), rAddr, remote, lAddr, local)
 				return nil, err
 			}
 			natTable.AddForLocalConn(local, remote, conn)
@@ -89,29 +88,8 @@ func createOrGetLocalConn(rAddr, lAddr netip.AddrPort, tunnel C.Tunnel, addition
 	return localConn, nil
 }
 
-// this function listen at rAddr
-// and send what received to program itself, then send to real remote
-func listenLocalConn(rAddr, lAddr netip.AddrPort, tunnel C.Tunnel, additions ...inbound.Addition) (*net.UDPConn, error) {
-	lc, err := dialUDP("udp", rAddr, lAddr)
-	if err != nil {
-		return nil, err
-	}
-	go func() {
-		log.Debugln("TProxy listenLocalConn rAddr=%s lAddr=%s", rAddr, lAddr)
-		for {
-			buf := pool.Get(pool.UDPBufferSize)
-			br, err := lc.Read(buf)
-			if err != nil {
-				if errors.Is(err, net.ErrClosed) {
-					log.Debugln("TProxy local conn listener exit.. rAddr=%s lAddr=%s", rAddr, lAddr)
-					pool.Put(buf)
-					return
-				}
-			}
-			// since following localPackets are pass through this socket which listen rAddr
-			// I choose current listener as packet's packet conn
-			handlePacketConn(lc, tunnel, buf[:br], lAddr, rAddr, additions...)
-		}
-	}()
-	return lc, nil
+// dialWriteBackConn binds rAddr with IP_TRANSPARENT and connects to lAddr so
+// subsequent WriteBacks reuse one UDPConn per (src, dst) instead of listen+goroutine per flow.
+func dialWriteBackConn(rAddr, lAddr netip.AddrPort) (*net.UDPConn, error) {
+	return dialUDP("udp", rAddr, lAddr)
 }

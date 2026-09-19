@@ -7,6 +7,7 @@ import (
 	"net/netip"
 	"time"
 
+	"github.com/metacubex/mihomo/common/atomic"
 	"github.com/metacubex/mihomo/common/utils"
 	"github.com/metacubex/mihomo/component/trie"
 
@@ -16,13 +17,13 @@ import (
 
 var (
 	// DefaultResolver aim to resolve ip
-	DefaultResolver Resolver
+	DefaultResolver atomic.TypedValue[Resolver]
 
 	// ProxyServerHostResolver resolve ip for proxies server host, only nil when DefaultResolver is nil
-	ProxyServerHostResolver Resolver
+	ProxyServerHostResolver atomic.TypedValue[Resolver]
 
 	// DirectHostResolver resolve ip for direct outbound host, only nil when DefaultResolver is nil
-	DirectHostResolver Resolver
+	DirectHostResolver atomic.TypedValue[Resolver]
 
 	// SystemResolver always using system dns, and was init in dns module
 	SystemResolver Resolver
@@ -83,7 +84,7 @@ func LookupIPv4WithResolver(ctx context.Context, host string, r Resolver) ([]net
 
 // LookupIPv4 with a host, return ipv4 list
 func LookupIPv4(ctx context.Context, host string) ([]netip.Addr, error) {
-	return LookupIPv4WithResolver(ctx, host, DefaultResolver)
+	return LookupIPv4WithResolver(ctx, host, DefaultResolver.Load())
 }
 
 // ResolveIPv4WithResolver same as ResolveIPv4, but with a resolver
@@ -99,7 +100,7 @@ func ResolveIPv4WithResolver(ctx context.Context, host string, r Resolver) (neti
 
 // ResolveIPv4 with a host, return ipv4
 func ResolveIPv4(ctx context.Context, host string) (netip.Addr, error) {
-	return ResolveIPv4WithResolver(ctx, host, DefaultResolver)
+	return ResolveIPv4WithResolver(ctx, host, DefaultResolver.Load())
 }
 
 // LookupIPv6WithResolver same as LookupIPv6, but with a resolver
@@ -133,7 +134,7 @@ func LookupIPv6WithResolver(ctx context.Context, host string, r Resolver) ([]net
 
 // LookupIPv6 with a host, return ipv6 list
 func LookupIPv6(ctx context.Context, host string) ([]netip.Addr, error) {
-	return LookupIPv6WithResolver(ctx, host, DefaultResolver)
+	return LookupIPv6WithResolver(ctx, host, DefaultResolver.Load())
 }
 
 // ResolveIPv6WithResolver same as ResolveIPv6, but with a resolver
@@ -148,7 +149,7 @@ func ResolveIPv6WithResolver(ctx context.Context, host string, r Resolver) (neti
 }
 
 func ResolveIPv6(ctx context.Context, host string) (netip.Addr, error) {
-	return ResolveIPv6WithResolver(ctx, host, DefaultResolver)
+	return ResolveIPv6WithResolver(ctx, host, DefaultResolver.Load())
 }
 
 // LookupIPWithResolver same as LookupIP, but with a resolver
@@ -176,7 +177,7 @@ func LookupIPWithResolver(ctx context.Context, host string, r Resolver) ([]netip
 
 // LookupIP with a host, return ip
 func LookupIP(ctx context.Context, host string) ([]netip.Addr, error) {
-	return LookupIPWithResolver(ctx, host, DefaultResolver)
+	return LookupIPWithResolver(ctx, host, DefaultResolver.Load())
 }
 
 // ResolveIPWithResolver same as ResolveIP, but with a resolver
@@ -196,7 +197,7 @@ func ResolveIPWithResolver(ctx context.Context, host string, r Resolver) (netip.
 
 // ResolveIP with a host, return ip and priority return TypeA
 func ResolveIP(ctx context.Context, host string) (netip.Addr, error) {
-	return ResolveIPWithResolver(ctx, host, DefaultResolver)
+	return ResolveIPWithResolver(ctx, host, DefaultResolver.Load())
 }
 
 // ResolveIPPrefer6WithResolver same as ResolveIP, but with a resolver
@@ -216,7 +217,7 @@ func ResolveIPPrefer6WithResolver(ctx context.Context, host string, r Resolver) 
 
 // ResolveIPPrefer6 with a host, return ip and priority return TypeAAAA
 func ResolveIPPrefer6(ctx context.Context, host string) (netip.Addr, error) {
-	return ResolveIPPrefer6WithResolver(ctx, host, DefaultResolver)
+	return ResolveIPPrefer6WithResolver(ctx, host, DefaultResolver.Load())
 }
 
 func ResolveECHWithResolver(ctx context.Context, host string, r Resolver) ([]byte, error) {
@@ -227,19 +228,19 @@ func ResolveECHWithResolver(ctx context.Context, host string, r Resolver) ([]byt
 }
 
 func ResolveECH(ctx context.Context, host string) ([]byte, error) {
-	return ResolveECHWithResolver(ctx, host, DefaultResolver)
+	return ResolveECHWithResolver(ctx, host, DefaultResolver.Load())
 }
 
 func ClearCache() {
-	if DefaultResolver != nil {
-		go DefaultResolver.ClearCache()
+	if r := DefaultResolver.Load(); r != nil {
+		go r.ClearCache()
 	}
 	go SystemResolver.ClearCache() // SystemResolver unneeded check nil
 }
 
 func ResetConnection() {
-	if DefaultResolver != nil {
-		go DefaultResolver.ResetConnection()
+	if r := DefaultResolver.Load(); r != nil {
+		go r.ResetConnection()
 	}
 	go SystemResolver.ResetConnection() // SystemResolver unneeded check nil
 }

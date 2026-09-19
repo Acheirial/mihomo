@@ -132,6 +132,8 @@ func parseRules(rulesConfig []string, proxies map[string]C.Proxy, ruleProviders 
 		rules = append(rules, parsed)
 	}
 
+	rules = R.CompileDomainSpans(rules)
+
 	return rules, nil
 }
 

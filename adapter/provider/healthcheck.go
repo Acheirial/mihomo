@@ -11,6 +11,7 @@ import (
 	"github.com/metacubex/mihomo/common/utils"
 	C "github.com/metacubex/mihomo/constant"
 	"github.com/metacubex/mihomo/log"
+	"github.com/metacubex/mihomo/tunnel"
 
 	"github.com/dlclark/regexp2"
 	"golang.org/x/sync/errgroup"
@@ -47,6 +48,9 @@ func (hc *HealthCheck) process() {
 	for {
 		select {
 		case <-ticker.C:
+			if tunnel.Status() == tunnel.Suspend {
+				continue
+			}
 			lastTouch := hc.lastTouch.Load()
 			since := time.Since(lastTouch)
 			if !hc.lazy || since < hc.interval {

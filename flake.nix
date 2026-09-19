@@ -23,7 +23,7 @@
       {
         overlay = final: prev: {
 
-          mihomo-meta = final.buildGo119Module {
+          mihomo-meta = final.buildGo124Module {
             pname = "mihomo-meta";
             inherit version;
             src = ./.;

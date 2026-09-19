@@ -21,7 +21,7 @@ In`release`, the filename of each package includes several pieces of information
 > * `v1/2/3`: only for AMD64 platforms, used to mark [CPU instruction set level](https://en.wikipedia.org/wiki/X86-64#Microarchitecture_levels)
 > * ~~`default(not specified in file name)`: Default version compiled with GOAMD64=v3 tag.~~
 > * ~~`compatible`: Compiled with GOAMD64=v1 tag for compatibility with specific OS or architecture.~~
-> * `go120`: Compiled with Golang1.20 for compatibility with specific OS or architecture. Without the `go` tag, the code is compiled using the latest Golang version.
+> * `go124`/`go125`: Compiled with Golang 1.24 / 1.25 for compatibility with specific OS or architecture. Without the `go` tag, the code is compiled using the latest Golang version (1.26 MetaCubeX fork). Minimum compiler is Go 1.24.
 > * `abi1/2`: ABI version for `loongarch64`
 >
 * Compile branch (e.g., `alpha`)
@@ -31,7 +31,7 @@ You can choose the executable file you need based on these pieces of information
 
 Check details between different architectural levels [here](https://go.dev/wiki/MinimumRequirements#amd64).
 
-Check details of system compatibility information about Golang version 1.20 [here](https://go.dev/doc/go1.20#ports).
+Check details of system compatibility information about Golang version 1.24 [here](https://go.dev/doc/go1.24#ports).
 
 Learn more about `loongarch64` ABI versions [here](http://www.loongnix.cn/zh/toolchain/Golang/downloads-Go1.21/index.html).
 
@@ -41,4 +41,4 @@ For macOS users: Currently, all official builds support macOS 10.13 and later (U
 
 For Windows users: Currently, all official builds support Windows 7 and higher. (Unofficial builds are not guaranteed to support this; we maintain [our own forked version of Golang](https://github.com/MetaCubeX/go) for compiling.)
 
-For Linux users: According to the [go wiki](https://go.dev/doc/go1.24#linux), Go 1.24 only supports kernels 3.2 and higher. For kernels 2.6.32 to 3.1, please download the binary tagged `go123`.
+For Linux users: According to the [go wiki](https://go.dev/doc/go1.24#linux), Go 1.24 only supports kernels 3.2 and higher. Official builds now floor at Go 1.24; `go123`/`go122`/`go120` tags are no longer produced.

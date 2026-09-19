@@ -1,6 +1,6 @@
 module github.com/metacubex/mihomo
 
-go 1.20
+go 1.24
 
 require (
 	github.com/andybalholm/brotli v1.1.1
@@ -67,7 +67,7 @@ require (
 	golang.org/x/text v0.22.0
 )
 
-// lastest version compatible with golang1.20
+// last pins that still compile; bump with a dedicated window
 require (
 	github.com/insomniacslk/dhcp v0.0.0-20250109001534-8abf58130905
 	github.com/klauspost/compress v1.17.9
@@ -150,3 +150,5 @@ require (
 
 // for https://github.com/golang/protobuf/issues/1704
 replace google.golang.org/protobuf => github.com/metacubex/protobuf-go v0.0.0-20260306035419-7ceee0674686
+
+replace github.com/metacubex/sing-tun => github.com/Acheirial/sing-tun v0.0.0-20260918161732-7d3353e85ab6

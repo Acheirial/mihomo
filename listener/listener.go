@@ -727,3 +727,173 @@ func closeTunListener() {
 func Cleanup() {
 	closeTunListener()
 }
+
+// WillRebindHTTP reports whether ReCreateHTTP would Close or Listen.
+func WillRebindHTTP(port int, bind string, lan bool) bool {
+	addr := genAddr(bind, port, lan)
+	if httpListener != nil {
+		return httpListener.RawAddress() != addr
+	}
+	return !portIsZero(addr)
+}
+
+// WillRebindSocks reports whether ReCreateSocks would Close or Listen.
+func WillRebindSocks(port int, bind string, lan bool) bool {
+	addr := genAddr(bind, port, lan)
+	tcpSame := socksListener != nil && socksListener.RawAddress() == addr
+	udpSame := socksUDPListener != nil && socksUDPListener.RawAddress() == addr
+	if tcpSame && udpSame {
+		return false
+	}
+	if portIsZero(addr) {
+		return socksListener != nil || socksUDPListener != nil
+	}
+	return true
+}
+
+// WillRebindRedir reports whether ReCreateRedir would Close or Listen.
+func WillRebindRedir(port int, bind string, lan bool) bool {
+	addr := genAddr(bind, port, lan)
+	if redirListener != nil && redirListener.RawAddress() == addr &&
+		(redirUDPListener == nil || redirUDPListener.RawAddress() == addr) {
+		return false
+	}
+	if portIsZero(addr) {
+		return redirListener != nil || redirUDPListener != nil
+	}
+	return true
+}
+
+// WillRebindTProxy reports whether ReCreateTProxy would Close or Listen.
+func WillRebindTProxy(port int, bind string, lan bool) bool {
+	addr := genAddr(bind, port, lan)
+	if tproxyListener != nil && tproxyListener.RawAddress() == addr &&
+		(tproxyUDPListener == nil || tproxyUDPListener.RawAddress() == addr) {
+		return false
+	}
+	if portIsZero(addr) {
+		return tproxyListener != nil || tproxyUDPListener != nil
+	}
+	return true
+}
+
+// WillRebindMixed reports whether ReCreateMixed would Close or Listen.
+func WillRebindMixed(port int, bind string, lan bool) bool {
+	addr := genAddr(bind, port, lan)
+	tcpSame := mixedListener != nil && mixedListener.RawAddress() == addr
+	udpSame := mixedUDPLister != nil && mixedUDPLister.RawAddress() == addr
+	if tcpSame && udpSame {
+		return false
+	}
+	if portIsZero(addr) {
+		return mixedListener != nil || mixedUDPLister != nil
+	}
+	return true
+}
+
+// WillRebindShadowSocks reports whether ReCreateShadowSocks would Close or Listen.
+func WillRebindShadowSocks(shadowSocksConfig string) bool {
+	var ssConfig LC.ShadowsocksServer
+	if addr, cipher, password, err := embedSS.ParseSSURL(shadowSocksConfig); err == nil {
+		ssConfig = LC.ShadowsocksServer{
+			Enable:   len(shadowSocksConfig) > 0,
+			Listen:   addr,
+			Password: password,
+			Cipher:   cipher,
+			Udp:      true,
+		}
+	}
+	if shadowSocksListener != nil {
+		return shadowSocksListener.Config() != ssConfig.String()
+	}
+	return ssConfig.Enable
+}
+
+// WillRebindVmess reports whether ReCreateVmess would Close or Listen.
+func WillRebindVmess(vmessConfig string) bool {
+	var vsConfig LC.VmessServer
+	if addr, username, password, err := sing_vmess.ParseVmessURL(vmessConfig); err == nil {
+		vsConfig = LC.VmessServer{
+			Enable: len(vmessConfig) > 0,
+			Listen: addr,
+			Users:  []LC.VmessUser{{Username: username, UUID: password, AlterID: 1}},
+		}
+	}
+	if vmessListener != nil {
+		return vmessListener.Config() != vsConfig.String()
+	}
+	return vsConfig.Enable
+}
+
+// WillRebindTuic reports whether ReCreateTuic would Close or Listen.
+func WillRebindTuic(config LC.TuicServer) bool {
+	if tuicListener != nil {
+		return tuicListener.Config().String() != config.String()
+	}
+	return config.Enable
+}
+
+// WillRebindTun reports whether ReCreateTun would Close or create a TUN device.
+func WillRebindTun(tunConf LC.Tun) bool {
+	tunConf.Sort()
+	return !tunConf.Equal(LastTunConf)
+}
+
+// WillRebindInboundListeners reports whether PatchInboundListeners would Close or Listen.
+func WillRebindInboundListeners(newListenerMap map[string]C.InboundListener, dropOld bool) bool {
+	for name, newListener := range newListenerMap {
+		if oldListener, ok := inboundListeners[name]; ok {
+			if !oldListener.Config().Equal(newListener.Config()) {
+				return true
+			}
+			continue
+		}
+		return true
+	}
+	if dropOld {
+		for name := range inboundListeners {
+			if _, ok := newListenerMap[name]; !ok {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+// WillRebindTunnels reports whether PatchTunnel would Close or Listen.
+func WillRebindTunnels(tunnels []LC.Tunnel) bool {
+	type addrProxy struct {
+		network string
+		addr    string
+		target  string
+		proxy   string
+	}
+	tcpOld := lo.Map(
+		lo.Keys(tunnelTCPListeners),
+		func(key string, _ int) addrProxy {
+			parts := strings.Split(key, "/")
+			return addrProxy{network: "tcp", addr: parts[0], target: parts[1], proxy: parts[2]}
+		},
+	)
+	udpOld := lo.Map(
+		lo.Keys(tunnelUDPListeners),
+		func(key string, _ int) addrProxy {
+			parts := strings.Split(key, "/")
+			return addrProxy{network: "udp", addr: parts[0], target: parts[1], proxy: parts[2]}
+		},
+	)
+	oldElm := lo.Union(tcpOld, udpOld)
+	newElm := lo.FlatMap(
+		tunnels,
+		func(tunnel LC.Tunnel, _ int) []addrProxy {
+			return lo.Map(
+				tunnel.Network,
+				func(network string, _ int) addrProxy {
+					return addrProxy{network: network, addr: tunnel.Address, target: tunnel.Target, proxy: tunnel.Proxy}
+				},
+			)
+		},
+	)
+	needClose, needCreate := lo.Difference(oldElm, newElm)
+	return len(needClose) > 0 || len(needCreate) > 0
+}

@@ -40,6 +40,7 @@ func HandleConn(c net.Conn, tunnel C.Tunnel, store auth.AuthStore, additions ...
 	defer cancel()
 	peekMutex := sync.Mutex{}
 
+	// mixed already passed *BufferedConn; NewBufferedConn reuses it (no nested reader).
 	conn := N.NewBufferedConn(c)
 
 	authenticator := store.Authenticator()

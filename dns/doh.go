@@ -59,7 +59,7 @@ type dnsOverHTTPS struct {
 
 	url            *url.URL
 	httpVersions   []C.HTTPVersion
-	dialer         *dnsDialer
+	dialer         Dialer
 	addr           string
 	skipCertVerify bool
 	nameCertVerify string
@@ -112,12 +112,11 @@ func (doh *dnsOverHTTPS) ExchangeContext(ctx context.Context, m *D.Msg) (msg *D.
 	// formats that include the ID field from the DNS message header, such
 	// as "application/dns-message", SHOULD use a DNS ID of 0 in every DNS
 	// request.
-	m = m.Copy()
 	id := m.Id
-	m.Id = 0
+	ex := *m
+	ex.Id = 0
+	m = &ex
 	defer func() {
-		// Restore the original ID to not break compatibility with proxies.
-		m.Id = id
 		if msg != nil {
 			msg.Id = id
 		}

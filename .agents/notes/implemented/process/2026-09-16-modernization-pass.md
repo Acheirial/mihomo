@@ -26,3 +26,4 @@ mihomo 主体代码停留在 Go 1.19 时代的写法:`ioutil.*` 已废弃、`glo
 
 - 收益:Go 写法收敛到单一惯例(`io.Discard`/`common/atomic` 泛型包装),新代码有明确规范可循;构建流程删掉 cgo 死遗产,vet 真正生效,加平台从改 37 处变成改模板;镜像与 CI 不再依赖漂浮 tag 与第三方 `@main` action,权限面最小化;所有改动对运行时行为零影响。
 - 收益(与 [可维护性批次](../simplification/2026-09-16-maintainability-pass.md) 互补:那批治代码结构与测试,本批治构建与 CI 基建):Go 写法收敛到单一惯例(`io.Discard`/`common/atomic` 泛型包装),新代码有明确规范可循;构建流程删掉 cgo 死遗产,vet 真正生效,加平台从改 37 处变成改模板;镜像与 CI 不再依赖漂浮 tag 与第三方 `@main` action,权限面最小化;所有改动对运行时行为零影响。本 fork 后来不再推 Docker Hub,见 [drop Docker Hub push](2026-09-17-drop-docker-hub-push.md)。
+- 本批钉住的 `go 1.20` 下限仍是当时的正确取舍。另开的发布窗口：Stage 1 见 [Stage 1 编译器下限上移到 Go 1.24](./2026-09-18-go-compiler-floor-1.24.md)；Stage 2 见 [2A 在 metacubex/sing-tun 补 go 栈与 SpliceSocket](../architecture/2026-09-18-go-stack-sing-tun-2a.md)。不改写本篇 Decision。

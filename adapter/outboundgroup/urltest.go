@@ -26,6 +26,7 @@ type URLTest struct {
 	tolerance      uint16
 	disableUDP     bool
 	fastNode       C.Proxy
+	fastVersion    uint32
 	fastSingle     *singledo.Single[C.Proxy]
 }
 
@@ -50,6 +51,8 @@ func (u *URLTest) Set(name string) error {
 
 func (u *URLTest) ForceSet(name string) {
 	u.selected = name
+	u.fastNode = nil
+	u.fastVersion = 0
 	u.fastSingle.Reset()
 }
 
@@ -101,8 +104,18 @@ func (u *URLTest) healthCheck() {
 }
 
 func (u *URLTest) fast(touch bool) C.Proxy {
-	elm, _, shared := u.fastSingle.Do(func() (C.Proxy, error) {
-		proxies := u.GetProxies(touch)
+	version := u.providersVersion()
+	if version != u.fastVersion {
+		u.fastSingle.Reset()
+		u.fastNode = nil
+		u.fastVersion = version
+	}
+	if touch {
+		u.Touch()
+	}
+
+	elm, _, _ := u.fastSingle.Do(func() (C.Proxy, error) {
+		proxies := u.GetProxies(false)
 		if u.selected != "" {
 			for _, proxy := range proxies {
 				if !proxy.AliveForTestUrl(u.testUrl) {
@@ -133,17 +146,12 @@ func (u *URLTest) fast(touch bool) C.Proxy {
 				fast = proxy
 				minDelay = delay
 			}
-
 		}
-		// tolerance
 		if u.fastNode == nil || fastNotExist || !u.fastNode.AliveForTestUrl(u.testUrl) || u.fastNode.LastDelayForTestUrl(u.testUrl) > fast.LastDelayForTestUrl(u.testUrl)+u.tolerance {
 			u.fastNode = fast
 		}
 		return u.fastNode, nil
 	})
-	if shared && touch { // a shared fastSingle.Do() may cause providers untouched, so we touch them again
-		u.Touch()
-	}
 
 	return elm
 }

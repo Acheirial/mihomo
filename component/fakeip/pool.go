@@ -34,18 +34,24 @@ type Pool struct {
 	last    netip.Addr
 	offset  netip.Addr
 	cycle   bool
-	mux     sync.Mutex
+	allocMu sync.Mutex
 	ipnet   netip.Prefix
 	store   store
 }
 
 // Lookup return a fake ip with host
 func (p *Pool) Lookup(host string) netip.Addr {
-	p.mux.Lock()
-	defer p.mux.Unlock()
-
 	// RFC4343: DNS Case Insensitive, we SHOULD return result with all cases.
 	host = strings.ToLower(host)
+	if ip, exist := p.store.GetByHost(host); exist {
+		return ip
+	}
+
+	p.allocMu.Lock()
+	defer p.allocMu.Unlock()
+
+	// Recheck under allocMu: another Lookup may have filled the mapping
+	// while we waited, and get() must not allocate a second IP.
 	if ip, exist := p.store.GetByHost(host); exist {
 		return ip
 	}
@@ -57,17 +63,11 @@ func (p *Pool) Lookup(host string) netip.Addr {
 
 // LookBack return host with the fake ip
 func (p *Pool) LookBack(ip netip.Addr) (string, bool) {
-	p.mux.Lock()
-	defer p.mux.Unlock()
-
 	return p.store.GetByIP(ip)
 }
 
 // Exist returns if given ip exists in fake-ip pool
 func (p *Pool) Exist(ip netip.Addr) bool {
-	p.mux.Lock()
-	defer p.mux.Unlock()
-
 	return p.store.Exist(ip)
 }
 
@@ -86,28 +86,34 @@ func (p *Pool) IPNet() netip.Prefix {
 	return p.ipnet
 }
 
-// CloneFrom clone cache from old pool
 func (p *Pool) CloneFrom(o *Pool) {
 	o.store.CloneTo(p.store)
 }
 
 func (p *Pool) get(host string) netip.Addr {
-	p.offset = p.offset.Next()
+	offset := p.offset.Next()
 
-	if !p.offset.Less(p.last) {
-		p.cycle = true
-		p.offset = p.first
+	cycle := p.cycle
+	if !offset.Less(p.last) {
+		cycle = true
+		offset = p.first
 	}
 
-	if p.cycle || p.store.Exist(p.offset) {
-		p.store.DelByIP(p.offset)
+	if cycle || p.store.Exist(offset) {
+		p.store.DelByIP(offset)
 	}
 
-	p.store.PutByIP(p.offset, host)
-	return p.offset
+	// Put the mapping before exposing offset so a concurrent LookBack
+	// cannot observe a recycled IP with no host (fake DNS record missing).
+	p.store.PutByIP(offset, host)
+	p.offset = offset
+	p.cycle = cycle
+	return offset
 }
 
 func (p *Pool) FlushFakeIP() error {
+	p.allocMu.Lock()
+	defer p.allocMu.Unlock()
 	err := p.store.FlushFakeIP()
 	if err == nil {
 		p.cycle = false
@@ -118,9 +124,12 @@ func (p *Pool) FlushFakeIP() error {
 
 func (p *Pool) StoreState() {
 	if s, ok := p.store.(*cachefileStore); ok {
-		s.PutByHost(offsetKey, p.offset)
-		if p.cycle {
-			s.PutByHost(cycleKey, p.offset)
+		p.allocMu.Lock()
+		offset, cycle := p.offset, p.cycle
+		p.allocMu.Unlock()
+		s.PutByHost(offsetKey, offset)
+		if cycle {
+			s.PutByHost(cycleKey, offset)
 		}
 	}
 }

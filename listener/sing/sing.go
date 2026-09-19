@@ -17,6 +17,7 @@ import (
 
 	"github.com/gofrs/uuid/v5"
 	mux "github.com/metacubex/sing-mux"
+	tun "github.com/metacubex/sing-tun"
 	vmess "github.com/metacubex/sing-vmess"
 	"github.com/metacubex/sing-vmess/packetaddr"
 	"github.com/metacubex/sing/common"
@@ -206,6 +207,24 @@ func (h *ListenerHandler) NewPacketConnection(ctx context.Context, conn network.
 		h.handlePacket(ctx, cPacket, metadata.Source, dest)
 	}
 	return nil
+}
+
+func (h *ListenerHandler) NewConnectionEx(ctx context.Context, conn net.Conn, source M.Socksaddr, destination M.Socksaddr, onClose tun.CloseHandlerFunc) {
+	metadata := M.Metadata{Source: source, Destination: destination}
+	var err error
+	if onClose != nil {
+		defer func() { onClose(err) }()
+	}
+	err = h.NewConnection(ctx, conn, metadata)
+}
+
+func (h *ListenerHandler) NewPacketConnectionEx(ctx context.Context, conn network.PacketConn, source M.Socksaddr, destination M.Socksaddr, onClose tun.CloseHandlerFunc) {
+	metadata := M.Metadata{Source: source, Destination: destination}
+	var err error
+	if onClose != nil {
+		defer func() { onClose(err) }()
+	}
+	err = h.NewPacketConnection(ctx, conn, metadata)
 }
 
 type localAddr interface {

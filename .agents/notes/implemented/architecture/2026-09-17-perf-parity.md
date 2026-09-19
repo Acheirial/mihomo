@@ -33,7 +33,7 @@ Status: implemented
 ## Consequences
 
 - **收益**：UDP DNS 可复用 30s 内空闲连接；关闭 tracking 时 `/connections` 为空且不 Join；丢包可观测；规则匹配不再全程持读锁；大流量拷贝升到 64KiB 档；热重载 GC 不再占住 `mux`。
-- **代价与已知上限**：复用 UDP DNS 连接会把 NAT 映射失效表现为偶发超时（Release(false) 必须覆盖 timeout）。`match()` 循环可能看到被替换的旧 slice（与整表替换窗口同类）。tracking 关闭后面板连接列表空。本地 `copyWithIncrease` 与未来 sing 的 `CopyWithIncreateBuffer` 会重复——升级 sing 时删本地实现。若未来 `tun.SpliceSocket` 出现，另开 proposed，不在本篇预埋空接口。
+- **代价与已知上限**：复用 UDP DNS 连接会把 NAT 映射失效表现为偶发超时（Release(false) 必须覆盖 timeout）。`match()` 循环可能看到被替换的旧 slice（与整表替换窗口同类）。tracking 关闭后面板连接列表空。本地 `copyWithIncrease` 与未来 sing 的 `CopyWithIncreateBuffer` 会重复——升级 sing 时删本地实现。socket splice / CountFunc 已在 [relay-socket-splice](./2026-09-18-relay-socket-splice.md) 落地；FakeIP 拆锁与 TCP DNS pool 见 [fakeip-lock-tcp-dns-pool](./2026-09-18-fakeip-lock-tcp-dns-pool.md)；热重载 I/O 出锁见 [reload-narrow-suspend](./2026-09-18-reload-narrow-suspend.md)。TUN `SpliceSocket` 重访已落地为 2A，见 [2A 在 metacubex/sing-tun 补 go 栈与 SpliceSocket](./2026-09-18-go-stack-sing-tun-2a.md)，不在本篇预埋空接口，也不改写本篇 Decision。
 
 ## Verification
 

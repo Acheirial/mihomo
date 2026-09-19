@@ -14,11 +14,10 @@ type memoryStore struct {
 // GetByHost implements store.GetByHost
 func (m *memoryStore) GetByHost(host string) (netip.Addr, bool) {
 	if ip, exist := m.cacheIP.Get(host); exist {
-		// ensure ip --> host on head of linked list
+		// keep host→ip and ip→host LRU ranks aligned on Lookup
 		m.cacheHost.Get(ip)
 		return ip, true
 	}
-
 	return netip.Addr{}, false
 }
 
@@ -27,15 +26,11 @@ func (m *memoryStore) PutByHost(host string, ip netip.Addr) {
 	m.cacheIP.Set(host, ip)
 }
 
-// GetByIP implements store.GetByIP
+// GetByIP implements store.GetByIP.
+// Peek avoids MoveToBack and never touches cacheIP, so LookBack does not take
+// the opposite LRU lock just to bump recency.
 func (m *memoryStore) GetByIP(ip netip.Addr) (string, bool) {
-	if host, exist := m.cacheHost.Get(ip); exist {
-		// ensure host --> ip on head of linked list
-		m.cacheIP.Get(host)
-		return host, true
-	}
-
-	return "", false
+	return m.cacheHost.Peek(ip)
 }
 
 // PutByIP implements store.PutByIP

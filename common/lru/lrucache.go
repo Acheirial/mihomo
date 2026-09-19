@@ -141,6 +141,20 @@ func (c *LruCache[K, V]) Exist(key K) bool {
 	return ok
 }
 
+// Peek returns a cached value without moving the entry to the head of the
+// linked list. LookBack-style reverse maps use this so a hot-path read does
+// not take the opposite cache's lock just to bump LRU recency.
+func (c *LruCache[K, V]) Peek(key K) (V, bool) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	le, ok := c.cache[key]
+	if !ok {
+		return lo.Empty[V](), false
+	}
+	return le.Value.value, true
+}
+
 // Set stores any representation of a response for a given key.
 func (c *LruCache[K, V]) Set(key K, value V) {
 	c.mu.Lock()

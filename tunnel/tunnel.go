@@ -107,6 +107,11 @@ func (t tunnel) HandleUDPPacket(packet C.UDPPacket, metadata *C.Metadata) {
 	packetAdapter := C.NewPacketAdapter(packet, metadata)
 	key := packetAdapter.Key()
 
+	if sender, loaded := natTable.Get(key); loaded {
+		sender.Send(packetAdapter)
+		return
+	}
+
 	hash := utils.MapHash(key)
 	queueNo := uint(hash) % uint(len(udpQueues))
 
@@ -336,9 +341,13 @@ func preHandleMetadata(metadata *C.Metadata) error {
 }
 
 func resolveMetadata(metadata *C.Metadata) (proxy C.Proxy, rule C.Rule, err error) {
+	configMux.RLock()
+	resolveProxies := proxies
+	configMux.RUnlock()
+
 	if metadata.SpecialProxy != "" {
 		var exist bool
-		proxy, exist = proxies[metadata.SpecialProxy]
+		proxy, exist = resolveProxies[metadata.SpecialProxy]
 		if !exist {
 			err = fmt.Errorf("proxy %s not found", metadata.SpecialProxy)
 		}
@@ -398,7 +407,7 @@ func resolveMetadata(metadata *C.Metadata) (proxy C.Proxy, rule C.Rule, err erro
 			}
 		},
 		CheckPassRule: func(adapterName string) bool {
-			adapter, ok := proxies[adapterName]
+			adapter, ok := resolveProxies[adapterName]
 			if !ok {
 				return false
 			}
@@ -421,9 +430,9 @@ func resolveMetadata(metadata *C.Metadata) (proxy C.Proxy, rule C.Rule, err erro
 
 	switch mode {
 	case Direct:
-		proxy = proxies["DIRECT"]
+		proxy = resolveProxies["DIRECT"]
 	case Global:
-		proxy = proxies["GLOBAL"]
+		proxy = resolveProxies["GLOBAL"]
 	// Rule
 	default:
 		proxy, rule, err = match(metadata, helper)
@@ -580,7 +589,7 @@ func handleTCPConn(connCtx C.ConnContext) {
 	}
 
 	peekMutex := sync.Mutex{}
-	if !conn.Peeked() {
+	if sniffingEnable && snifferDispatcher.Enable() && !conn.Peeked() {
 		peekMutex.Lock()
 		go func() {
 			defer peekMutex.Unlock()
@@ -633,8 +642,15 @@ func handleTCPConn(connCtx C.ConnContext) {
 			}()
 			peekMutex.Lock()
 			defer peekMutex.Unlock()
+			if conn.Buffered() == 0 {
+				_ = conn.SetReadDeadline(time.Now().Add(200 * time.Millisecond))
+				_, _ = conn.Peek(1)
+				_ = conn.SetReadDeadline(time.Time{})
+			}
 			peekBytes, _ = conn.Peek(conn.Buffered())
-			_, err = remoteConn.Write(peekBytes)
+			var n int
+			n, err = remoteConn.Write(peekBytes)
+			err = errIfHandshakeWritten(n, err)
 			if err != nil {
 				return
 			}
@@ -765,6 +781,15 @@ func getRules(metadata *C.Metadata) []C.Rule {
 	}
 }
 
+var errHandshakeWritten = errors.New("handshake payload already written")
+
+func errIfHandshakeWritten(written int, err error) error {
+	if written > 0 && err != nil {
+		return errHandshakeWritten
+	}
+	return err
+}
+
 func shouldStopRetry(err error) bool {
 	if errors.Is(err, resolver.ErrIPNotFound) {
 		return true
@@ -778,12 +803,15 @@ func shouldStopRetry(err error) bool {
 	if errors.Is(err, loopback.ErrReject) {
 		return true
 	}
+	if errors.Is(err, errHandshakeWritten) {
+		return true
+	}
 	return false
 }
 
 func retry[T any](ctx context.Context, ft func(context.Context) (T, error), fe func(err error)) (t T, err error) {
 	s := slowdown.New()
-	for i := 0; i < 10; i++ {
+	for i := 0; i < 3; i++ {
 		t, err = ft(ctx)
 		if err != nil {
 			if fe != nil {

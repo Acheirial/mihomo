@@ -15,14 +15,16 @@ type SelectorOption struct {
 
 type Selector struct {
 	*GroupBase
-	disableUDP bool
-	selected   string
-	testUrl    string
+	disableUDP      bool
+	selected        string
+	selectedProxy   C.Proxy
+	selectedVersion uint32
+	testUrl         string
 }
 
 // DialContext implements C.ProxyAdapter
 func (s *Selector) DialContext(ctx context.Context, metadata *C.Metadata) (C.Conn, error) {
-	c, err := s.selectedProxy(true).DialContext(ctx, metadata)
+	c, err := s.selectedProxyFn(true).DialContext(ctx, metadata)
 	if err == nil {
 		c.AppendToChains(s)
 	}
@@ -31,7 +33,7 @@ func (s *Selector) DialContext(ctx context.Context, metadata *C.Metadata) (C.Con
 
 // ListenPacketContext implements C.ProxyAdapter
 func (s *Selector) ListenPacketContext(ctx context.Context, metadata *C.Metadata) (C.PacketConn, error) {
-	pc, err := s.selectedProxy(true).ListenPacketContext(ctx, metadata)
+	pc, err := s.selectedProxyFn(true).ListenPacketContext(ctx, metadata)
 	if err == nil {
 		pc.AppendToChains(s)
 	}
@@ -44,12 +46,12 @@ func (s *Selector) SupportUDP() bool {
 		return false
 	}
 
-	return s.selectedProxy(false).SupportUDP()
+	return s.selectedProxyFn(false).SupportUDP()
 }
 
 // IsL3Protocol implements C.ProxyAdapter
 func (s *Selector) IsL3Protocol(metadata *C.Metadata) bool {
-	return s.selectedProxy(false).IsL3Protocol(metadata)
+	return s.selectedProxyFn(false).IsL3Protocol(metadata)
 }
 
 // MarshalJSON implements C.ProxyAdapter
@@ -77,13 +79,13 @@ func (s *Selector) MarshalJSON() ([]byte, error) {
 }
 
 func (s *Selector) Now() string {
-	return s.selectedProxy(false).Name()
+	return s.selectedProxyFn(false).Name()
 }
 
 func (s *Selector) Set(name string) error {
 	for _, proxy := range s.GetProxies(false) {
 		if proxy.Name() == name {
-			s.selected = name
+			s.ForceSet(name)
 			return nil
 		}
 	}
@@ -93,22 +95,37 @@ func (s *Selector) Set(name string) error {
 
 func (s *Selector) ForceSet(name string) {
 	s.selected = name
+	s.selectedProxy = nil
+	s.selectedVersion = 0
 }
 
 // Unwrap implements C.ProxyAdapter
 func (s *Selector) Unwrap(metadata *C.Metadata, touch bool) C.Proxy {
-	return s.selectedProxy(touch)
+	return s.selectedProxyFn(touch)
 }
 
-func (s *Selector) selectedProxy(touch bool) C.Proxy {
+func (s *Selector) selectedProxyFn(touch bool) C.Proxy {
+	version := s.providersVersion()
+	if s.selectedProxy != nil && s.selectedVersion == version && (s.selected == "" || s.selectedProxy.Name() == s.selected) {
+		if touch {
+			s.Touch()
+		}
+		return s.selectedProxy
+	}
+
 	proxies := s.GetProxies(touch)
+	version = s.providersVersion()
 	for _, proxy := range proxies {
 		if proxy.Name() == s.selected {
+			s.selectedProxy = proxy
+			s.selectedVersion = version
 			return proxy
 		}
 	}
 
-	return proxies[0]
+	s.selectedProxy = proxies[0]
+	s.selectedVersion = version
+	return s.selectedProxy
 }
 
 func (s *Selector) Providers() []P.ProxyProvider {

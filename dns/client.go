@@ -20,11 +20,12 @@ type contextDialer interface {
 }
 
 type client struct {
-	port   string
-	host   string
-	dialer contextDialer
-	schema string
-	pool   udpConnPool
+	port    string
+	host    string
+	dialer  contextDialer
+	schema  string
+	pool    idleConnPool
+	tcpIdle idleConnPool
 }
 
 var _ dnsClient = (*client)(nil)
@@ -45,18 +46,12 @@ func (c *client) ExchangeContext(ctx context.Context, m *D.Msg) (*D.Msg, error) 
 		return c.dialer.DialContext(ctx, network, addr)
 	}
 
-	var conn net.Conn
-	var err error
-	if c.schema == "udp" {
-		conn, err = c.pool.Acquire(ctx, dial)
-	} else {
-		conn, err = dial(ctx)
-	}
+	conn, err := c.pool.Acquire(ctx, dial)
 	if err != nil {
 		return nil, err
 	}
 
-	reuse := c.schema == "udp"
+	reuse := true
 
 	// The background exchange goroutine is the sole owner of conn for the
 	// duration of the exchange: miekg/dns ignores ctx cancellation, so the
@@ -76,11 +71,7 @@ func (c *client) ExchangeContext(ctx context.Context, m *D.Msg) (*D.Msg, error) 
 			return
 		}
 		released = true
-		if c.schema != "udp" {
-			_ = conn.Close()
-		} else {
-			c.pool.Release(conn, keep)
-		}
+		c.pool.Release(conn, keep)
 	}
 
 	defer func() {
@@ -100,7 +91,6 @@ func (c *client) ExchangeContext(ctx context.Context, m *D.Msg) (*D.Msg, error) 
 	type result struct {
 		msg     *D.Msg
 		err     error
-		tcpConn net.Conn
 		dropUDP bool
 	}
 	ch := make(chan result, 1)
@@ -125,15 +115,20 @@ func (c *client) ExchangeContext(ctx context.Context, m *D.Msg) (*D.Msg, error) 
 			// now (a truncated reply means the path is not safe to reuse) and
 			// mark it released so the outer defer never double-releases it.
 			releaseConn(false)
+			tcpDial := func(ctx context.Context) (net.Conn, error) {
+				return c.dialer.DialContext(ctx, "tcp", addr)
+			}
 			var tcpConn net.Conn
-			tcpConn, err = c.dialer.DialContext(ctx, network, addr)
+			tcpConn, err = c.tcpPool().Acquire(ctx, tcpDial)
 			if err != nil {
 				ch <- result{msg: msg, err: err, dropUDP: true}
 				return
 			}
 			dConn.Conn = tcpConn
 			msg, _, err = dClient.ExchangeWithConn(m, dConn)
-			ch <- result{msg: msg, err: err, tcpConn: tcpConn, dropUDP: true}
+			keepTCP := err == nil
+			c.tcpPool().Release(tcpConn, keepTCP)
+			ch <- result{msg: msg, err: err, dropUDP: true}
 			return
 		}
 
@@ -152,9 +147,6 @@ func (c *client) ExchangeContext(ctx context.Context, m *D.Msg) (*D.Msg, error) 
 		reuse = false
 		return nil, ctx.Err()
 	case ret := <-ch:
-		if ret.tcpConn != nil {
-			_ = ret.tcpConn.Close()
-		}
 		if ret.err != nil || ret.dropUDP {
 			reuse = false
 		}
@@ -164,18 +156,32 @@ func (c *client) ExchangeContext(ctx context.Context, m *D.Msg) (*D.Msg, error) 
 
 func (c *client) ResetConnection() {
 	c.pool.Close()
+	c.tcpIdle.Close()
+}
+
+// tcpPool is the idle pool used for truncated UDP→TCP retries. TCP clients
+// reuse c.pool; UDP clients keep a separate LIFO≤8 pool so a truncated retry
+// does not steal the UDP slot.
+func (c *client) tcpPool() *idleConnPool {
+	if c.schema == "tcp" {
+		return &c.pool
+	}
+	return &c.tcpIdle
 }
 
 func newClient(addr string, resolver resolver.Resolver, netType string, params map[string]string, proxyAdapter C.ProxyAdapter, proxyName string) *client {
 	host, port, _ := net.SplitHostPort(addr)
 	c := &client{
-		port:   port,
-		host:   host,
-		dialer: newDNSDialer(resolver, proxyAdapter, proxyName),
-		schema: "udp",
+		port:    port,
+		host:    host,
+		dialer:  newDNSDialer(resolver, proxyAdapter, proxyName),
+		schema:  "udp",
+		pool:    newUDPConnPool(),
+		tcpIdle: newTCPConnPool(),
 	}
 	if strings.HasPrefix(netType, "tcp") {
 		c.schema = "tcp"
+		c.pool = newTCPConnPool()
 	}
 	return c
 }

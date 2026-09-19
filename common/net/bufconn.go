@@ -2,7 +2,9 @@ package net
 
 import (
 	"bufio"
+	"errors"
 	"net"
+	"syscall"
 
 	"github.com/metacubex/mihomo/common/buf"
 )
@@ -103,4 +105,23 @@ func (c *BufferedConn) ReaderReplaceable() bool {
 
 func (c *BufferedConn) WriterReplaceable() bool {
 	return true
+}
+
+var errBufferedConnPeekResidual = errors.New("buffered conn has residual peek data")
+
+// SyscallConn forwards to the inner socket only when the peek cache is empty.
+// Residual Peek bytes MUST never be spliced over.
+func (c *BufferedConn) SyscallConn() (syscall.RawConn, error) {
+	if !c.ReaderReplaceable() {
+		return nil, errBufferedConnPeekResidual
+	}
+	if sc, ok := c.ExtendedConn.(syscall.Conn); ok {
+		return sc.SyscallConn()
+	}
+	if u, ok := c.ExtendedConn.(interface{ Upstream() any }); ok {
+		if sc, ok := u.Upstream().(syscall.Conn); ok {
+			return sc.SyscallConn()
+		}
+	}
+	return nil, errors.New("buffered conn inner is not syscall.Conn")
 }

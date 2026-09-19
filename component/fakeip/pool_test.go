@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"net/netip"
 	"os"
+	"sync"
 	"testing"
 	"time"
 
@@ -280,4 +281,65 @@ func TestPool_FlushMemoryCache(t *testing.T) {
 	assert.Equal(t, bar, baz)
 	assert.NotEqual(t, bar, next)
 	assert.Equal(t, baz, nero)
+}
+
+// blockingStore wraps a store and blocks GetByHost until unblock is closed.
+// Lookup takes allocMu then GetByHost, so a blocked Lookup holds allocMu.
+type blockingStore struct {
+	inner   store
+	blockCh <-chan struct{}
+}
+
+func (s *blockingStore) GetByHost(host string) (netip.Addr, bool) {
+	<-s.blockCh
+	return s.inner.GetByHost(host)
+}
+func (s *blockingStore) PutByHost(host string, ip netip.Addr) { s.inner.PutByHost(host, ip) }
+func (s *blockingStore) GetByIP(ip netip.Addr) (string, bool) { return s.inner.GetByIP(ip) }
+func (s *blockingStore) PutByIP(ip netip.Addr, host string)   { s.inner.PutByIP(ip, host) }
+func (s *blockingStore) DelByIP(ip netip.Addr)                { s.inner.DelByIP(ip) }
+func (s *blockingStore) Exist(ip netip.Addr) bool             { return s.inner.Exist(ip) }
+func (s *blockingStore) CloneTo(st store)                     { s.inner.CloneTo(st) }
+func (s *blockingStore) FlushFakeIP() error                   { return s.inner.FlushFakeIP() }
+
+func TestPool_LookBackDoesNotTakeAllocMu(t *testing.T) {
+	ipnet := netip.MustParsePrefix("192.168.0.0/28")
+	pool, err := New(Options{IPNet: ipnet, Size: 10})
+	assert.Nil(t, err)
+
+	ip := pool.Lookup("foo.com")
+	host, ok := pool.LookBack(ip)
+	assert.True(t, ok)
+	assert.Equal(t, "foo.com", host)
+
+	block := make(chan struct{})
+	pool.store = &blockingStore{inner: pool.store, blockCh: block}
+
+	started := make(chan struct{})
+	var wg sync.WaitGroup
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		close(started)
+		_ = pool.Lookup("bar.com") // holds allocMu once GetByHost blocks
+	}()
+	<-started
+	time.Sleep(20 * time.Millisecond)
+
+	done := make(chan struct{})
+	go func() {
+		got, exist := pool.LookBack(ip)
+		assert.True(t, exist)
+		assert.Equal(t, "foo.com", got)
+		close(done)
+	}()
+
+	select {
+	case <-done:
+	case <-time.After(time.Second):
+		t.Fatal("LookBack blocked on allocMu held by Lookup")
+	}
+
+	close(block)
+	wg.Wait()
 }

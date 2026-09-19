@@ -418,6 +418,7 @@ func New(options LC.Tun, tunnel C.Tunnel, additions ...inbound.Addition) (l *Lis
 		InterfaceMonitor:                      defaultInterfaceMonitor,
 		EXP_RecvMsgX:                          options.RecvMsgX,
 		EXP_SendMsgX:                          options.SendMsgX,
+		EXP_MultiPendingPackets:               options.RecvMsgX,
 		EXP_ProcessorsPerChannel:              options.ProcessorsPerChannel,
 	}
 
@@ -486,6 +487,10 @@ func New(options LC.Tun, tunnel C.Tunnel, additions ...inbound.Addition) (l *Lis
 	// after tun.New sing-tun has set DNS to TUN interface
 	resolver.AddSystemDnsBlacklist(dnsServerIp...)
 
+	udpMapping := tun.NATMappingAddressAndPortDependent
+	if options.EndpointIndependentNat {
+		udpMapping = tun.NATMappingEndpointIndependent
+	}
 	stackOptions := tun.StackOptions{
 		Context:                ctx,
 		Tun:                    tunIf,
@@ -493,6 +498,7 @@ func New(options LC.Tun, tunnel C.Tunnel, additions ...inbound.Addition) (l *Lis
 		EndpointIndependentNat: options.EndpointIndependentNat,
 		UDPTimeout:             udpTimeout,
 		ICMPTimeout:            icmpTimeout,
+		UDPMapping:             udpMapping,
 		Handler:                handler,
 		Logger:                 log.SingLogger,
 		ForwarderBindInterface: forwarderBindInterface,

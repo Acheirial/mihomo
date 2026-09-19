@@ -6,6 +6,8 @@ import (
 	"io"
 	"net"
 	"net/url"
+	"sync"
+	"time"
 
 	N "github.com/metacubex/mihomo/common/net"
 
@@ -13,17 +15,42 @@ import (
 	"github.com/metacubex/randv2"
 )
 
+const h2IdleTimeout = 300 * time.Second
+
 type h2Conn struct {
-	net.Conn
-	*http.ClientConn
 	pwriter *io.PipeWriter
 	res     *http.Response
 	cfg     *H2Config
+	rt      http.RoundTripper
+	once    sync.Once
+	err     error
 }
+
+type h2Addr struct {
+	network string
+	addr    string
+}
+
+func (a h2Addr) Network() string { return a.network }
+func (a h2Addr) String() string  { return a.addr }
 
 type H2Config struct {
 	Hosts []string
 	Path  string
+}
+
+// NewH2Transport returns a reusable HTTP/2 Transport. DialTLSContext must
+// already have completed the TLS handshake (h2c mode).
+func NewH2Transport(dialTLS func(ctx context.Context) (net.Conn, error)) *http.Transport {
+	protocols := new(http.Protocols)
+	protocols.SetUnencryptedHTTP2(true)
+	return &http.Transport{
+		DialTLSContext: func(ctx context.Context, network, addr string) (net.Conn, error) {
+			return dialTLS(ctx)
+		},
+		Protocols:       protocols,
+		IdleConnTimeout: h2IdleTimeout,
+	}
 }
 
 func (hc *h2Conn) establishConn() error {
@@ -34,7 +61,6 @@ func (hc *h2Conn) establishConn() error {
 	}
 	host := hc.cfg.Hosts[randv2.IntN(len(hc.cfg.Hosts))]
 	path := hc.cfg.Path
-	// TODO: connect use VMess Host instead of H2 Host
 	req := http.Request{
 		Method: "PUT",
 		Host:   host,
@@ -52,80 +78,76 @@ func (hc *h2Conn) establishConn() error {
 		},
 	}
 
-	// it will be close at :  `func (hc *h2Conn) Close() error`
-	res, err := hc.ClientConn.RoundTrip(&req)
+	res, err := hc.rt.RoundTrip(&req)
 	if err != nil {
+		_ = pwriter.Close()
 		return err
 	}
 
 	hc.pwriter = pwriter
 	hc.res = res
-
 	return nil
 }
 
-// Read implements net.Conn.Read()
-func (hc *h2Conn) Read(b []byte) (int, error) {
-	if hc.res != nil && !hc.res.Close {
-		n, err := hc.res.Body.Read(b)
-		return n, err
-	}
+func (hc *h2Conn) ensure() error {
+	hc.once.Do(func() {
+		hc.err = hc.establishConn()
+	})
+	return hc.err
+}
 
-	if err := hc.establishConn(); err != nil {
+func (hc *h2Conn) Read(b []byte) (int, error) {
+	if err := hc.ensure(); err != nil {
 		return 0, err
 	}
 	return hc.res.Body.Read(b)
 }
 
-// Write implements io.Writer.
 func (hc *h2Conn) Write(b []byte) (int, error) {
-	if hc.pwriter != nil {
-		return hc.pwriter.Write(b)
-	}
-
-	if err := hc.establishConn(); err != nil {
+	if err := hc.ensure(); err != nil {
 		return 0, err
 	}
 	return hc.pwriter.Write(b)
 }
 
 func (hc *h2Conn) Close() error {
+	var errs []error
 	if hc.pwriter != nil {
 		if err := hc.pwriter.Close(); err != nil {
-			return err
+			errs = append(errs, err)
 		}
 	}
-	return hc.Conn.Close()
+	if hc.res != nil && hc.res.Body != nil {
+		if err := hc.res.Body.Close(); err != nil {
+			errs = append(errs, err)
+		}
+	}
+	return errors.Join(errs...)
 }
 
-func StreamH2Conn(ctx context.Context, conn net.Conn, cfg *H2Config) (_ net.Conn, err error) {
+func (hc *h2Conn) LocalAddr() net.Addr {
+	return h2Addr{network: "tcp", addr: "h2:local"}
+}
+
+func (hc *h2Conn) RemoteAddr() net.Addr {
+	return h2Addr{network: "tcp", addr: "h2:remote"}
+}
+
+func (hc *h2Conn) SetDeadline(t time.Time) error      { return nil }
+func (hc *h2Conn) SetReadDeadline(t time.Time) error  { return nil }
+func (hc *h2Conn) SetWriteDeadline(t time.Time) error { return nil }
+
+func StreamH2Conn(ctx context.Context, rt http.RoundTripper, cfg *H2Config) (_ net.Conn, err error) {
+	if rt == nil {
+		return nil, errors.New("h2 transport is nil")
+	}
+	conn := &h2Conn{
+		cfg: cfg,
+		rt:  rt,
+	}
 	if ctx.Done() != nil {
 		done := N.SetupContextForConn(ctx, conn)
 		defer done(&err)
 	}
-
-	// use h2c mode to disallow the net/http fallback to http1.1
-	//
-	// Note that this usage is only applicable to our own net/http fork.
-	// The standard library also needs to mask the tls.Conn type for the conn returned by DialTLSContext,
-	// see: https://github.com/golang/go/issues/79293#issuecomment-4426393534
-	protocols := new(http.Protocols)
-	protocols.SetUnencryptedHTTP2(true)
-	transport := &http.Transport{
-		DialTLSContext: func(ctx context.Context, network, addr string) (net.Conn, error) {
-			return conn, nil
-		},
-		Protocols: protocols,
-	}
-
-	clientConn, err := transport.NewClientConn(ctx, "https", ":0")
-	if err != nil {
-		return nil, err
-	}
-
-	return &h2Conn{
-		Conn:       conn,
-		ClientConn: clientConn,
-		cfg:        cfg,
-	}, nil
+	return conn, nil
 }

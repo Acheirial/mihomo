@@ -59,10 +59,22 @@ func queryA() *D.Msg {
 
 func newUDPClient(d contextDialer) *client {
 	return &client{
+		host:    "1.1.1.1",
+		port:    "53",
+		dialer:  d,
+		schema:  "udp",
+		pool:    newUDPConnPool(),
+		tcpIdle: newTCPConnPool(),
+	}
+}
+
+func newTCPClient(d contextDialer) *client {
+	return &client{
 		host:   "1.1.1.1",
 		port:   "53",
 		dialer: d,
-		schema: "udp",
+		schema: "tcp",
+		pool:   newTCPConnPool(),
 	}
 }
 
@@ -92,7 +104,11 @@ func TestUDPConnPoolIdleExpiry(t *testing.T) {
 	require.Equal(t, int32(1), d.dials.Load())
 
 	c.pool.mu.Lock()
-	c.pool.idle = time.Now().Add(-dnsUDPIdleTimeout - time.Second)
+	if c.pool.conns.Len() > 0 {
+		item := c.pool.conns.PopBack()
+		item.idle = time.Now().Add(-dnsUDPIdleTimeout - time.Second)
+		c.pool.conns.PushBack(item)
+	}
 	c.pool.mu.Unlock()
 
 	_, err = c.ExchangeContext(ctx, queryA())
@@ -128,9 +144,9 @@ func TestUDPConnPoolReleaseOnWriteFail(t *testing.T) {
 	require.Equal(t, int32(1), d.dials.Load())
 
 	c.pool.mu.Lock()
-	pooled := c.pool.conn
+	pooled := c.pool.conns.Len()
 	c.pool.mu.Unlock()
-	require.Nil(t, pooled, "write fail must Release(false) and not keep the conn")
+	require.Equal(t, 0, pooled, "write fail must Release(false) and not keep the conn")
 
 	d.serve = serveDNS
 	_, err = c.ExchangeContext(ctx, queryA())
@@ -147,21 +163,16 @@ func TestUDPConnPoolAcquireDialError(t *testing.T) {
 	require.Equal(t, want, err)
 }
 
-func TestTCPExchangeDoesNotUsePool(t *testing.T) {
+func TestTCPConnPoolReuse(t *testing.T) {
 	d := &countingDialer{serve: serveDNS}
-	c := &client{
-		host:   "1.1.1.1",
-		port:   "53",
-		dialer: d,
-		schema: "tcp",
-	}
+	c := newTCPClient(d)
 	ctx := context.Background()
 
 	_, err := c.ExchangeContext(ctx, queryA())
 	require.NoError(t, err)
 	_, err = c.ExchangeContext(ctx, queryA())
 	require.NoError(t, err)
-	require.Equal(t, int32(2), d.dials.Load(), "TCP must dial per query")
+	require.Equal(t, int32(1), d.dials.Load(), "consecutive TCP Exchange must reuse the pooled conn")
 }
 
 // TestExchangeContextCancelReleasesGoroutine verifies that cancelling the
@@ -201,11 +212,10 @@ func TestExchangeContextCancelReleasesGoroutine(t *testing.T) {
 	}
 	require.LessOrEqual(t, waitGoroutines(), base, "exchange goroutine outlived ExchangeContext")
 
-	// the abandoned conn must not have been put back in the pool
 	c.pool.mu.Lock()
-	pooled := c.pool.conn
+	pooled := c.pool.conns.Len()
 	c.pool.mu.Unlock()
-	require.Nil(t, pooled, "conn abandoned after ctx cancel must not be pooled")
+	require.Equal(t, 0, pooled, "conn abandoned after ctx cancel must not be pooled")
 
 	// a second call must dial again instead of reusing the abandoned conn.
 	// Its own ctx deadline also bounds the read, so it does not block for 5s.

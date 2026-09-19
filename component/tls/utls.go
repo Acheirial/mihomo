@@ -191,6 +191,9 @@ func UConfig(config *tls.Config) *utls.Config {
 		Renegotiation:          utls.RenegotiationSupport(config.Renegotiation),
 		KeyLogWriter:           config.KeyLogWriter,
 	}
+	if cache, ok := config.ClientSessionCache.(tlsSessionCache); ok {
+		cfg.ClientSessionCache = cache.UTLS()
+	}
 	if config.GetClientCertificate != nil {
 		cfg.GetClientCertificate = func(info *utls.CertificateRequestInfo) (*utls.Certificate, error) {
 			tlsInfo := &tls.CertificateRequestInfo{

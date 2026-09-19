@@ -177,7 +177,7 @@ func (b *Base) DialOptions() (opts []dialer.Option) {
 
 func (b *Base) ResolveUDP(ctx context.Context, metadata *C.Metadata) error {
 	if !metadata.Resolved() {
-		ip, err := resolveIPWithResolver(ctx, metadata.Host, b.prefer, resolver.DefaultResolver)
+		ip, err := resolveIPWithResolver(ctx, metadata.Host, b.prefer, resolver.DefaultResolver.Load())
 		if err != nil {
 			return fmt.Errorf("can't resolve ip: %w", err)
 		}
@@ -268,6 +268,13 @@ func (c *conn) WriterReplaceable() bool {
 
 func (c *conn) ReaderReplaceable() bool {
 	return true
+}
+
+func (c *conn) SyscallConn() (syscall.RawConn, error) {
+	if sc, ok := N.FindUpstream[syscall.Conn](c.ExtendedConn, nil); ok {
+		return sc.SyscallConn()
+	}
+	return nil, syscall.EINVAL
 }
 
 func (c *conn) AddRef(ref any) {

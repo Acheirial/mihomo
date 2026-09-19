@@ -22,7 +22,7 @@ const maxOldDotConns = 8
 type dnsOverTLS struct {
 	port           string
 	host           string
-	dialer         *dnsDialer
+	dialer         Dialer
 	skipCertVerify bool
 	nameCertVerify string
 	disableReuse   bool

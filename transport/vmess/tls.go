@@ -34,15 +34,21 @@ type TLSConfig struct {
 	TLSMirrorDialer   tlsmirror.EnrollmentDialer
 	// WebsocketALPN forces uTLS ALPN to http/1.1 after fingerprint construction.
 	WebsocketALPN bool
+	// SessionCache is per-stack. NEVER share across outbounds (SNI mix).
+	SessionCache *tlsC.SharedClientSessionCache
 }
 
 func (cfg *TLSConfig) ToStdConfig() (*tls.Config, error) {
+	std := &tls.Config{
+		ServerName:         cfg.Host,
+		InsecureSkipVerify: cfg.SkipCertVerify,
+		NextProtos:         cfg.NextProtos,
+	}
+	if cfg.SessionCache != nil {
+		std.ClientSessionCache = cfg.SessionCache.TLS()
+	}
 	return ca.GetTLSConfig(ca.Option{
-		TLSConfig: &tls.Config{
-			ServerName:         cfg.Host,
-			InsecureSkipVerify: cfg.SkipCertVerify,
-			NextProtos:         cfg.NextProtos,
-		},
+		TLSConfig:      std,
 		Fingerprint:    cfg.FingerPrint,
 		NameCertVerify: cfg.NameCertVerify,
 		Certificate:    cfg.Certificate,

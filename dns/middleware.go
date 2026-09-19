@@ -53,7 +53,8 @@ func withHosts(mapping *lru.LruCache[netip.Addr, string]) middleware {
 				return next(ctx, r)
 			}
 
-			msg := r.Copy()
+			msg := new(D.Msg)
+			msg.SetReply(r)
 			handleIPs := func() {
 				for _, ipAddr := range record.IPs {
 					if ipAddr.Is4() && q.Qtype == D.TypeA {
@@ -182,12 +183,12 @@ func withFakeIP(skipper *fakeip.Skipper, fakePool *fakeip.Pool, fakePool6 *fakei
 				return next(ctx, r)
 			}
 
-			msg := r.Copy()
+			msg := new(D.Msg)
+			msg.SetReply(r)
 			msg.Answer = []D.RR{rr}
 
 			ctx.SetType(icontext.DNSTypeFakeIP)
 			setMsgTTL(msg, uint32(fakeIPTTL))
-			msg.SetRcode(r, D.RcodeSuccess)
 			msg.Authoritative = true
 			msg.RecursionAvailable = true
 

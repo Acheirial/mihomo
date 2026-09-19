@@ -239,12 +239,18 @@ unified-delay: true
 
 ## TCP 并发
 
-启用 TCP 并发连接，将会使用 dns 解析出的所有 IP 地址进行连接，使用第一个成功的连接
+控制同族多 IP 的拨号竞速强度。默认 `false`：**不再傻等第一个 IP 的连接超时**，而是按 RFC 8305 交错拨号（默认间隔 300ms）。死掉的首个 A/AAAA 记录会在 delay 量级切到下一个地址，而不是吃满 `DefaultTCPTimeout`（5s）。
 
-可选值 `true/false`
+`true` 时同族地址以 delay=0 同时发起（旧的全量竞速）；双栈仍是主族立即、备族延迟后再 SYN，不会在 t=0 同时打两个族。
+
+TFO 连接始终串行，且继承调用方 context。
+
+用节点上的 `ip-version` 可以锁族。不要把 `tcp-concurrent` 当成 Happy Eyeballs 的开关——HE 是默认路径。
+
+可选值 `true/false`，默认 `false`。
 
 ```{.yaml linenums="1"}
-tcp-concurrent: true
+tcp-concurrent: false
 ```
 
 ## 出站接口 {#outbound-interface}

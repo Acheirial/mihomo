@@ -340,6 +340,7 @@ type PacketSender interface {
 
 type NatTable interface {
 	GetOrCreate(key string, maker func() PacketSender) (PacketSender, bool)
+	Get(key string) (PacketSender, bool)
 
 	Delete(key string)
 

@@ -7,7 +7,6 @@ import (
 	"net"
 	"strconv"
 
-	N "github.com/metacubex/mihomo/common/net"
 	C "github.com/metacubex/mihomo/constant"
 	"github.com/metacubex/mihomo/transport/shadowsocks/core"
 	"github.com/metacubex/mihomo/transport/trojan"
@@ -72,29 +71,11 @@ func (t *Trojan) streamConnContext(ctx context.Context, c net.Conn, metadata *C.
 		c = t.ssCipher.StreamConn(c)
 	}
 
-	if ctx.Done() != nil {
-		done := N.SetupContextForConn(ctx, c)
-		defer done(&err)
-	}
 	command := trojan.CommandTCP
 	if metadata.NetWork == C.UDP {
 		command = trojan.CommandUDP
 	}
-	err = trojan.WriteHeader(c, t.hexPassword, command, serializesSocksAddr(metadata))
-	return c, err
-}
-
-func (t *Trojan) writeHeaderContext(ctx context.Context, c net.Conn, metadata *C.Metadata) (err error) {
-	if ctx.Done() != nil {
-		done := N.SetupContextForConn(ctx, c)
-		defer done(&err)
-	}
-	command := trojan.CommandTCP
-	if metadata.NetWork == C.UDP {
-		command = trojan.CommandUDP
-	}
-	err = trojan.WriteHeader(c, t.hexPassword, command, serializesSocksAddr(metadata))
-	return err
+	return trojan.NewClientConn(c, t.hexPassword, command, serializesSocksAddr(metadata)), nil
 }
 
 func (t *Trojan) dialContext(ctx context.Context) (c net.Conn, err error) {

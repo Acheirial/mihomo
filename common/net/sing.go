@@ -3,6 +3,7 @@ package net
 import (
 	"io"
 	"net"
+	"syscall"
 
 	"github.com/metacubex/mihomo/common/net/deadline"
 	"github.com/metacubex/mihomo/common/pool"
@@ -96,15 +97,98 @@ func Relay(leftConn, rightConn net.Conn) {
 const copyIncreaseThreshold = 512 * 1024
 
 func copyWithIncrease(dst io.Writer, src io.Reader) (int64, error) {
+	originSrc := src
+	var readCounters, writeCounters []network.CountFunc
+	src, readCounters = collectCountReader(src, readCounters)
+	dst, writeCounters = collectCountWriter(dst, writeCounters)
+
+	var cachedN int64
+	for {
+		src, readCounters = network.UnwrapCountReader(src, readCounters)
+		dst, writeCounters = network.UnwrapCountWriter(dst, writeCounters)
+		cached, ok := src.(network.CachedReader)
+		if !ok {
+			break
+		}
+		buffer := cached.ReadCached()
+		if buffer == nil {
+			break
+		}
+		dataLen := buffer.Len()
+		_, err := dst.Write(buffer.Bytes())
+		buffer.Release()
+		if err != nil {
+			return cachedN, err
+		}
+		n := int64(dataLen)
+		cachedN += n
+		for _, counter := range readCounters {
+			counter(n)
+		}
+		for _, counter := range writeCounters {
+			counter(n)
+		}
+	}
+
+	_, srcOK := src.(syscall.Conn)
+	_, dstOK := dst.(syscall.Conn)
+	if srcOK && dstOK {
+		n, err := bufio.CopyWithCounters(dst, src, originSrc, readCounters, writeCounters)
+		n += cachedN
+		if err == nil {
+			return n, io.EOF
+		}
+		return n, err
+	}
+
+	return copyPooledIncrease(dst, src, cachedN, readCounters, writeCounters)
+}
+
+// collectCountReader peels ReadCounter wrappers before replaceable unwrap.
+// sing UnwrapCountReader calls UnwrapReader first, which would skip a
+// ReaderReplaceable tracker and drop its CountFunc.
+func collectCountReader(src io.Reader, counts []network.CountFunc) (io.Reader, []network.CountFunc) {
+	for {
+		c, ok := src.(network.ReadCounter)
+		if !ok {
+			break
+		}
+		var extra []network.CountFunc
+		src, extra = c.UnwrapReader()
+		counts = append(counts, extra...)
+	}
+	return src, counts
+}
+
+func collectCountWriter(dst io.Writer, counts []network.CountFunc) (io.Writer, []network.CountFunc) {
+	for {
+		c, ok := dst.(network.WriteCounter)
+		if !ok {
+			break
+		}
+		var extra []network.CountFunc
+		dst, extra = c.UnwrapWriter()
+		counts = append(counts, extra...)
+	}
+	return dst, counts
+}
+
+func copyPooledIncrease(dst io.Writer, src io.Reader, written int64, readCounters, writeCounters []network.CountFunc) (int64, error) {
 	n := pool.RelayBufferSize
-	var written int64
 	for {
 		buf := pool.Get(n)
 		nr, er := src.Read(buf)
 		if nr > 0 {
 			nw, ew := dst.Write(buf[:nr])
 			if nw > 0 {
-				written += int64(nw)
+				wn := int64(nw)
+				written += wn
+				for _, counter := range readCounters {
+					counter(wn)
+				}
+				for _, counter := range writeCounters {
+					counter(wn)
+				}
 				if n == pool.RelayBufferSize && written > copyIncreaseThreshold {
 					n = 65535
 				}

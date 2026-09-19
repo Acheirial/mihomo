@@ -102,7 +102,7 @@ func ApplyTransport(server *http.Server, tlsConfig *tls.Config, opt TransportOpt
 
 - 新增 `docs/docs/config/inbound/listeners/transport.{md,en.md,ru.md}`（入站传输层配置，对齐出站 `config/proxies/transport.md` 的风格，mkcp/mekya 字段集从 vmess.md 逐键复制），加入 mkdocs nav「通用字段」之后。
 - `docs/docs/config/inbound/listeners/{trojan,vless,anytls,snell,ss}.{md,en.md,ru.md}` 各加一行 `mkcp-config`/`mekya-config` 注释（三语本地化）。
-- `experimental.{md,en.md,ru.md}` 的 `go-memory-limit`/`go-gc-percent` 文档未随本轮落地，待补。
+- `experimental.{md,en.md,ru.md}` 的 `go-memory-limit`/`go-gc-percent` 已补三语文档（YAML `0` = 不设置）。
 
 ## Workstreams
 
@@ -132,5 +132,6 @@ func ApplyTransport(server *http.Server, tlsConfig *tls.Config, opt TransportOpt
 - `hub/route/server.go`（外部控制器 TLS）本轮**未**迁移，避免给 `route` 加反向依赖；它继续用本地实现，留待后续。
 - trojan/vless/anytls/snell/ss 入站选项新增 `mkcp-config`/`mekya-config` 字段，零值（不写）完全不启用、不创建 UDP socket——老配置行为不变。mkcp/mekya 与 ShadowTLS/Restls/JLS 的互斥目前只靠文档，服务端运行时强制是后续项。
 - `copyWithIncrease` 返回 `io.EOF` 使 `Relay` 在对端 EOF 时全关双端；`listener/http/upgrade.go` 与 `sudoku/server.go` 这两个 `N.Relay` 调用方随全树构建验证，无行为破坏。
-- `go-memory-limit`/`go-gc-percent` 默认 0 时两个 debug 调用都不执行，行为与旧版本一致；实验文档三语待补。
+- `go-memory-limit`/`go-gc-percent` 默认 0 时两个 debug 调用都不执行，行为与旧版本一致；实验文档三语已补。
 - 内存采样改为秒级后台 tick 后，`GET /memory` 返回的是最近一次采样值（≤1s 陈旧），换来了 REST 路径零 `/proc` 读。
+- 升 Go / bump sing-tun 拿 `SpliceSocket` 当时不在本篇范围；该重访已落地为 2A，见 [2A 在 metacubex/sing-tun 补 go 栈与 SpliceSocket](./2026-09-18-go-stack-sing-tun-2a.md)。本轮未做的 `CopyWithCounters`/tracker CountFunc 已由 [relay-socket-splice](./2026-09-18-relay-socket-splice.md) 落地（单向 Copy，不是 CopyConn）。

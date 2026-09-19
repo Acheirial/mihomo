@@ -5,6 +5,8 @@ import (
 	"errors"
 	"io"
 	"net"
+	"sync/atomic"
+	"syscall"
 	"testing"
 	"time"
 
@@ -150,4 +152,80 @@ func TestRelayClosesOnEOFPeer(t *testing.T) {
 	if _, err := leftConn.Read(make([]byte, 1)); err == nil {
 		t.Error("leftConn still readable: Relay half-closed instead of closing")
 	}
+}
+
+type countReader struct {
+	io.Reader
+	n *atomic.Int64
+}
+
+func (r countReader) UnwrapReader() (io.Reader, []CountFunc) {
+	n := r.n
+	return r.Reader, []CountFunc{func(v int64) { n.Add(v) }}
+}
+
+func (r countReader) ReaderReplaceable() bool { return true }
+
+func (r countReader) Upstream() any { return r.Reader }
+
+type countWriter struct {
+	io.Writer
+	n *atomic.Int64
+}
+
+func (w countWriter) UnwrapWriter() (io.Writer, []CountFunc) {
+	n := w.n
+	return w.Writer, []CountFunc{func(v int64) { n.Add(v) }}
+}
+
+func (w countWriter) WriterReplaceable() bool { return true }
+
+func (w countWriter) Upstream() any { return w.Writer }
+
+func TestCopyWithIncreaseCountFuncOnReplaceable(t *testing.T) {
+	payload := []byte("count-me")
+	var got atomic.Int64
+	n, err := copyWithIncrease(io.Discard, countReader{Reader: bytes.NewReader(payload), n: &got})
+	require.ErrorIs(t, err, io.EOF)
+	assert.Equal(t, int64(len(payload)), n)
+	assert.Equal(t, int64(len(payload)), got.Load())
+}
+
+func TestCopyWithIncreaseCachedThenPooled(t *testing.T) {
+	inner, server := net.Pipe()
+	defer inner.Close()
+	defer server.Close()
+
+	go func() {
+		_, _ = server.Write([]byte("world"))
+		_ = server.Close()
+	}()
+
+	src := NewCachedConn(inner, []byte("hello"))
+	dst := &bytes.Buffer{}
+	n, err := copyWithIncrease(dst, src)
+	require.ErrorIs(t, err, io.EOF)
+	assert.Equal(t, int64(10), n)
+	assert.Equal(t, "helloworld", dst.String())
+}
+
+func TestBufferedConnResidualPeekBlocksSyscall(t *testing.T) {
+	c1, c2 := net.Pipe()
+	defer c1.Close()
+	defer c2.Close()
+
+	bc := NewBufferedConn(c1)
+	go func() {
+		_, _ = c2.Write([]byte("AB"))
+	}()
+	b, err := bc.Peek(1)
+	require.NoError(t, err)
+	require.Equal(t, []byte("A"), b)
+	assert.False(t, bc.ReaderReplaceable())
+
+	_, err = bc.SyscallConn()
+	require.Error(t, err)
+	assert.ErrorIs(t, err, errBufferedConnPeekResidual)
+	_, isSyscall := any(bc).(syscall.Conn)
+	assert.True(t, isSyscall, "BufferedConn implements syscall.Conn so Copy type-asserts it")
 }

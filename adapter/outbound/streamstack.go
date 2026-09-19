@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/metacubex/mihomo/common/convert"
+	"github.com/metacubex/mihomo/common/httputils"
 	"github.com/metacubex/mihomo/component/dialer"
 	"github.com/metacubex/mihomo/component/ech"
 	tlsC "github.com/metacubex/mihomo/component/tls"
@@ -43,6 +44,7 @@ type StreamStack struct {
 	ws       *vmess.WebsocketConfig
 	http     *vmess.HTTPConfig
 	h2       *vmess.H2Config
+	h2Pool   *http.Transport
 	gun      *gun.Client
 	xhttp    *xhttp.Client
 	mekya    *mekya.Client
@@ -160,6 +162,7 @@ func NewStreamStack(opt StreamStackOption) (*StreamStack, error) {
 		Reality:           opt.Reality,
 		TLSMirror:         opt.TLSMirror,
 		TLSMirrorDialer:   opt.TLSMirrorDialer,
+		SessionCache:      tlsC.NewSharedClientSessionCache(64),
 	}
 	if len(tlsCfg.NextProtos) == 0 && len(opt.DefaultALPN) > 0 {
 		tlsCfg.NextProtos = opt.DefaultALPN
@@ -234,6 +237,19 @@ func NewStreamStack(opt StreamStackOption) (*StreamStack, error) {
 			Hosts: h2opts.Host,
 			Path:  h2opts.Path,
 		}
+		s.h2Pool = vmess.NewH2Transport(func(ctx context.Context) (net.Conn, error) {
+			raw, err := s.dialer.DialContext(ctx, "tcp", s.addr)
+			if err != nil {
+				return nil, err
+			}
+			conn, err := s.handshakeTLS(ctx, raw, true)
+			if err != nil {
+				_ = raw.Close()
+				return nil, err
+			}
+			return conn, nil
+		})
+
 	case "grpc":
 		dialFn := func(ctx context.Context, _, _ string) (net.Conn, error) {
 			c, err := opt.Dialer.DialContext(ctx, "tcp", opt.Addr)
@@ -309,7 +325,7 @@ func NewStreamStack(opt StreamStackOption) (*StreamStack, error) {
 
 func (s *StreamStack) Session() bool {
 	switch s.network {
-	case "grpc", "xhttp", "mekya", "mkcp":
+	case "grpc", "xhttp", "mekya", "mkcp", "h2":
 		return true
 	default:
 		return false
@@ -339,6 +355,8 @@ func (s *StreamStack) Dial(ctx context.Context) (net.Conn, error) {
 			return nil, err
 		}
 		return c, nil
+	case "h2":
+		return vmess.StreamH2Conn(ctx, s.h2Pool, s.h2)
 	default:
 		return s.dialer.DialContext(ctx, "tcp", s.addr)
 	}
@@ -364,12 +382,6 @@ func (s *StreamStack) Wrap(ctx context.Context, c net.Conn) (net.Conn, error) {
 			return nil, err
 		}
 		return vmess.StreamHTTPConn(c, s.http), nil
-	case "h2":
-		c, err = s.handshakeTLS(ctx, c, true)
-		if err != nil {
-			return nil, err
-		}
-		return vmess.StreamH2Conn(ctx, c, s.h2)
 	default:
 		return s.handshakeTLS(ctx, c, false)
 	}
@@ -402,6 +414,9 @@ func (s *StreamStack) Close() error {
 		if err := s.mekya.Close(); err != nil {
 			errs = append(errs, err)
 		}
+	}
+	if s.h2Pool != nil {
+		httputils.CloseTransport(s.h2Pool)
 	}
 	return errors.Join(errs...)
 }

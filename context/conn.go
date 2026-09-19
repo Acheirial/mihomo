@@ -1,16 +1,18 @@
 package context
 
 import (
-	"github.com/metacubex/mihomo/common/utils"
 	"net"
+	"sync"
 
 	N "github.com/metacubex/mihomo/common/net"
+	"github.com/metacubex/mihomo/common/utils"
 	C "github.com/metacubex/mihomo/constant"
 
 	"github.com/gofrs/uuid/v5"
 )
 
 type ConnContext struct {
+	idOnce   sync.Once
 	id       uuid.UUID
 	metadata *C.Metadata
 	conn     *N.BufferedConn
@@ -18,7 +20,6 @@ type ConnContext struct {
 
 func NewConnContext(conn net.Conn, metadata *C.Metadata) *ConnContext {
 	return &ConnContext{
-		id:       utils.NewUUIDV4(),
 		metadata: metadata,
 		conn:     N.NewBufferedConn(conn),
 	}
@@ -26,6 +27,9 @@ func NewConnContext(conn net.Conn, metadata *C.Metadata) *ConnContext {
 
 // ID implement C.ConnContext ID
 func (c *ConnContext) ID() uuid.UUID {
+	c.idOnce.Do(func() {
+		c.id = utils.NewUUIDV4()
+	})
 	return c.id
 }
 

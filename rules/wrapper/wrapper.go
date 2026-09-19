@@ -51,7 +51,11 @@ func (r *RuleWrapper) Hit() {
 
 func (r *RuleWrapper) Miss() {
 	r.missCount.Add(1)
-	r.missAt.Store(time.Now())
+	now := time.Now()
+	old := r.missAt.Load()
+	if now.Sub(old) >= time.Second {
+		r.missAt.CompareAndSwap(old, now)
+	}
 }
 
 func (r *RuleWrapper) Match(metadata *C.Metadata, helper C.RuleMatchHelper) (bool, string) {

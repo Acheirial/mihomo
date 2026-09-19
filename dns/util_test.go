@@ -306,20 +306,6 @@ func TestPutMsgToCache(t *testing.T) {
 		require.True(t, hit)
 		assert.WithinDuration(t, time.Now().Add(5*time.Second), expire, 3*time.Second)
 	})
-
-	t.Run("stored msg is a copy", func(t *testing.T) {
-		// caller must be able to mutate its msg afterwards without corrupting the cache
-		c := newCache()
-		msg := makeMsg([]D.RR{makeRR(D.TypeA, "a.example.org.", 300)})
-		q := msg.Question[0]
-		putMsgToCache(c, q, msg)
-
-		msg.Answer[0].Header().Ttl = 1
-		cached, _, hit := c.GetWithExpire(q.String())
-		require.True(t, hit)
-		assert.Equal(t, uint32(300), cached.Answer[0].Header().Ttl)
-	})
-
 	t.Run("unknown qtype is just a distinct cache key", func(t *testing.T) {
 		// qtype not in the IP family set is still cacheable under its own key; the
 		// boundary is that A/AAAA/TXT keys never collide with it

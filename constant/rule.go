@@ -40,6 +40,7 @@ const (
 	AND
 	OR
 	NOT
+	DomainSpan
 )
 
 type RuleType int
@@ -118,6 +119,8 @@ func (rt RuleType) String() string {
 		return "OR"
 	case NOT:
 		return "NOT"
+	case DomainSpan:
+		return "DomainSpan"
 	default:
 		return "Unknown"
 	}

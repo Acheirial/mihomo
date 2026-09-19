@@ -18,6 +18,7 @@ import (
 	"github.com/metacubex/mihomo/component/auth"
 	"github.com/metacubex/mihomo/component/ca"
 	"github.com/metacubex/mihomo/component/dialer"
+	"github.com/metacubex/mihomo/component/fakeip"
 	"github.com/metacubex/mihomo/component/geodata"
 	mihomoHttp "github.com/metacubex/mihomo/component/http"
 	"github.com/metacubex/mihomo/component/iface"
@@ -44,7 +45,12 @@ import (
 	"github.com/metacubex/mihomo/tunnel"
 )
 
-var mux sync.Mutex
+var (
+	applyMu     sync.Mutex
+	mux         sync.Mutex
+	lastDNS     *config.DNS
+	lastDNSIPv6 bool
+)
 
 func readConfig(path string) ([]byte, error) {
 	if _, err := os.Stat(path); os.IsNotExist(err) {
@@ -83,12 +89,17 @@ func ParseWithBytes(buf []byte) (*config.Config, error) {
 }
 
 // ApplyConfig dispatch configure to all parts without ExternalController
-// Note: 包级全局 + 整表替换；热重载 = 全量 ApplyConfig。见 .agents/notes/implemented/architecture/2026-09-17-perf-parity.md
+// Note: 包级全局 + 整表替换；热重载 = 全量 ApplyConfig。
+// GC 出锁见 .agents/notes/implemented/architecture/2026-09-17-perf-parity.md
+// provider I/O 出锁与 Suspend 收窄见 .agents/notes/implemented/architecture/2026-09-18-reload-narrow-suspend.md
 func ApplyConfig(cfg *config.Config, force bool) {
+	dns.SetDialerFactory(func(r resolver.Resolver, pa C.ProxyAdapter, name string) dns.Dialer {
+		return tunnel.NewDNSDialer(r, pa, name)
+	})
+	applyMu.Lock()
+	defer applyMu.Unlock()
 	mux.Lock()
 	log.SetLevel(cfg.General.LogLevel)
-
-	tunnel.OnSuspend()
 
 	ca.ResetCertificate()
 	for _, c := range cfg.TLS.CustomTrustCert {
@@ -107,19 +118,28 @@ func ApplyConfig(cfg *config.Config, force bool) {
 	updateGeneral(cfg.General, true)
 	updateDNS(cfg.DNS, cfg.General.IPv6)
 	updateNTP(cfg.NTP) // initialize NTP after DNS because an NTP server may be a hostname.
+
+	needSuspend := listenerNeedsSuspend(cfg.General, cfg.Listeners, cfg.Tunnels, force)
+	if needSuspend {
+		tunnel.OnSuspend()
+	}
 	updateListeners(cfg.General, cfg.Listeners, force)
 	updateTun(cfg.General) // tun should not care "force"
 	updateIPTables(cfg)
 	updateTunnels(cfg.Tunnels)
-
-	tunnel.OnInnerLoading()
-
 	initInnerTcp()
-	loadProvider(cfg.Providers)
-	updateProfile(cfg)
-	loadProvider(cfg.RuleProviders)
+	// Resume before provider I/O so HTTP RTT cannot hold Suspend or mux.
 	tunnel.OnRunning()
 	mux.Unlock()
+
+	loadProvider(cfg.Providers)
+
+	mux.Lock()
+	updateProfile(cfg)
+	mux.Unlock()
+
+	loadProvider(cfg.RuleProviders)
+
 	runtime.GC()
 	updateUpdater(cfg)
 
@@ -247,13 +267,19 @@ func updateNTP(c *config.NTP) {
 }
 
 func updateDNS(c *config.DNS, generalIPv6 bool) {
+	if dnsConfigUnchanged(c, generalIPv6) {
+		return
+	}
+
 	if !c.Enable {
-		resolver.DefaultResolver = nil
-		resolver.DefaultHostMapper = nil
-		resolver.DefaultService = nil
-		resolver.ProxyServerHostResolver = nil
-		resolver.DirectHostResolver = nil
+		resolver.DefaultResolver.Store(nil)
+		resolver.DefaultHostMapper.Store(nil)
+		resolver.DefaultService.Store(nil)
+		resolver.ProxyServerHostResolver.Store(nil)
+		resolver.DirectHostResolver.Store(nil)
 		dns.ReCreateServer("", nil, nil)
+		lastDNS = c
+		lastDNSIPv6 = generalIPv6
 		return
 	}
 
@@ -286,32 +312,35 @@ func updateDNS(c *config.DNS, generalIPv6 bool) {
 	})
 
 	// reuse cache of old host mapper
-	if old := resolver.DefaultHostMapper; old != nil {
+	if old := resolver.DefaultHostMapper.Load(); old != nil {
 		m.PatchFrom(old.(*dns.ResolverEnhancer))
 	}
 
 	s := dns.NewService(r, m)
 
-	resolver.DefaultResolver = r
-	resolver.DefaultHostMapper = m
-	resolver.DefaultService = s
+	resolver.DefaultResolver.Store(r)
+	resolver.DefaultHostMapper.Store(m)
+	resolver.DefaultService.Store(s)
 	resolver.UseSystemHosts = c.UseSystemHosts
 
 	if r.ProxyResolver.Invalid() {
-		resolver.ProxyServerHostResolver = r.ProxyResolver
+		resolver.ProxyServerHostResolver.Store(r.ProxyResolver)
 	} else {
-		resolver.ProxyServerHostResolver = r.Resolver
+		resolver.ProxyServerHostResolver.Store(r.Resolver)
 	}
 
 	if r.DirectResolver.Invalid() {
-		resolver.DirectHostResolver = r.DirectResolver
+		resolver.DirectHostResolver.Store(r.DirectResolver)
 	} else {
-		resolver.DirectHostResolver = r.Resolver
+		resolver.DirectHostResolver.Store(r.Resolver)
 	}
 
 	lc := inbound.NewListenConfig()
 	lc.SetRouteMark(c.ListenRoutingMark)
 	dns.ReCreateServer(c.Listen, lc, s)
+
+	lastDNS = c
+	lastDNSIPv6 = generalIPv6
 }
 
 func updateHosts(tree *trie.DomainTrie[resolver.HostValue]) {
@@ -562,4 +591,217 @@ func Shutdown() {
 	resolver.StoreFakePoolState()
 
 	log.Warnln("Mihomo shutting down")
+}
+
+func listenerNeedsSuspend(general *config.General, listeners map[string]C.InboundListener, tunnels []LC.Tunnel, force bool) bool {
+	if listener.WillRebindInboundListeners(listeners, true) {
+		return true
+	}
+	if listener.WillRebindTun(general.Tun) {
+		return true
+	}
+	if listener.WillRebindTunnels(tunnels) {
+		return true
+	}
+	if !force {
+		return false
+	}
+	bind := general.BindAddress
+	lan := general.AllowLan
+	return listener.WillRebindHTTP(general.Port, bind, lan) ||
+		listener.WillRebindSocks(general.SocksPort, bind, lan) ||
+		listener.WillRebindRedir(general.RedirPort, bind, lan) ||
+		listener.WillRebindTProxy(general.TProxyPort, bind, lan) ||
+		listener.WillRebindMixed(general.MixedPort, bind, lan) ||
+		listener.WillRebindShadowSocks(general.ShadowSocksConfig) ||
+		listener.WillRebindVmess(general.VmessConfig) ||
+		listener.WillRebindTuic(general.TuicServer)
+}
+
+func dnsConfigUnchanged(c *config.DNS, generalIPv6 bool) bool {
+	old := lastDNS
+	if old == nil || c == nil {
+		return false
+	}
+	if lastDNSIPv6 != generalIPv6 {
+		return false
+	}
+	if old.Enable != c.Enable ||
+		old.PreferH3 != c.PreferH3 ||
+		old.IPv6 != c.IPv6 ||
+		old.IPv6Timeout != c.IPv6Timeout ||
+		old.UseHosts != c.UseHosts ||
+		old.UseSystemHosts != c.UseSystemHosts ||
+		old.Listen != c.Listen ||
+		old.ListenRoutingMark != c.ListenRoutingMark ||
+		old.EnhancedMode != c.EnhancedMode ||
+		old.CacheAlgorithm != c.CacheAlgorithm ||
+		old.CacheMaxSize != c.CacheMaxSize ||
+		old.FakeIPRange != c.FakeIPRange ||
+		old.FakeIPRange6 != c.FakeIPRange6 ||
+		old.FakeIPTTL != c.FakeIPTTL ||
+		old.DirectFollowPolicy != c.DirectFollowPolicy ||
+		old.FallbackLazyQuery != c.FallbackLazyQuery {
+		return false
+	}
+	if !nameServersEqual(old.NameServer, c.NameServer) ||
+		!nameServersEqual(old.Fallback, c.Fallback) ||
+		!nameServersEqual(old.DefaultNameserver, c.DefaultNameserver) ||
+		!nameServersEqual(old.ProxyServerNameserver, c.ProxyServerNameserver) ||
+		!nameServersEqual(old.DirectNameServer, c.DirectNameServer) {
+		return false
+	}
+	if !dnsPoliciesEqual(old.NameServerPolicy, c.NameServerPolicy) ||
+		!dnsPoliciesEqual(old.ProxyServerPolicy, c.ProxyServerPolicy) {
+		return false
+	}
+	if !ipMatchersEqual(old.FallbackIPFilter, c.FallbackIPFilter) ||
+		!domainMatchersEqual(old.FallbackDomainFilter, c.FallbackDomainFilter) {
+		return false
+	}
+	if !fakeIPPoolEqual(old.FakeIPPool, c.FakeIPPool) ||
+		!fakeIPPoolEqual(old.FakeIPPool6, c.FakeIPPool6) {
+		return false
+	}
+	return fakeIPSkipperEqual(old.FakeIPSkipper, c.FakeIPSkipper)
+}
+
+func nameServersEqual(a, b []dns.NameServer) bool {
+	if len(a) != len(b) {
+		return false
+	}
+	for i := range a {
+		if !a[i].Equal(b[i]) {
+			return false
+		}
+	}
+	return true
+}
+
+func dnsPoliciesEqual(a, b []dns.Policy) bool {
+	if len(a) != len(b) {
+		return false
+	}
+	for i := range a {
+		if a[i].Domain != b[i].Domain {
+			return false
+		}
+		if !nameServersEqual(a[i].NameServers, b[i].NameServers) {
+			return false
+		}
+		if !domainMatcherEqual(a[i].Matcher, b[i].Matcher) {
+			return false
+		}
+	}
+	return true
+}
+
+func fakeIPPoolEqual(a, b *fakeip.Pool) bool {
+	if a == nil || b == nil {
+		return a == b
+	}
+	return a.IPNet() == b.IPNet()
+}
+
+func fakeIPSkipperEqual(a, b *fakeip.Skipper) bool {
+	if a == nil || b == nil {
+		return a == b
+	}
+	if a.Mode != b.Mode {
+		return false
+	}
+	if len(a.Rules) != len(b.Rules) {
+		return false
+	}
+	for i := range a.Rules {
+		if a.Rules[i].RuleType() != b.Rules[i].RuleType() ||
+			a.Rules[i].Adapter() != b.Rules[i].Adapter() ||
+			a.Rules[i].Payload() != b.Rules[i].Payload() {
+			return false
+		}
+	}
+	return domainMatchersEqual(a.Host, b.Host)
+}
+
+func ipMatchersEqual(a, b []C.IpMatcher) bool {
+	if len(a) != len(b) {
+		return false
+	}
+	for i := range a {
+		if !ipMatcherEqual(a[i], b[i]) {
+			return false
+		}
+	}
+	return true
+}
+
+func domainMatchersEqual(a, b []C.DomainMatcher) bool {
+	if len(a) != len(b) {
+		return false
+	}
+	for i := range a {
+		if !domainMatcherEqual(a[i], b[i]) {
+			return false
+		}
+	}
+	return true
+}
+
+func ipMatcherEqual(a, b C.IpMatcher) bool {
+	if a == nil || b == nil {
+		return a == nil && b == nil
+	}
+	if sa, ok := a.(fmt.Stringer); ok {
+		if sb, ok := b.(fmt.Stringer); ok {
+			return sa.String() == sb.String()
+		}
+	}
+	if pa, ok := a.(interface{ Payload() string }); ok {
+		if pb, ok := b.(interface{ Payload() string }); ok {
+			return pa.Payload() == pb.Payload()
+		}
+	}
+	return false
+}
+
+func domainMatcherEqual(a, b C.DomainMatcher) bool {
+	if a == nil || b == nil {
+		return a == nil && b == nil
+	}
+	if sa, ok := a.(fmt.Stringer); ok {
+		if sb, ok := b.(fmt.Stringer); ok {
+			return sa.String() == sb.String()
+		}
+	}
+	if pa, ok := a.(interface{ Payload() string }); ok {
+		if pb, ok := b.(interface{ Payload() string }); ok {
+			return pa.Payload() == pb.Payload()
+		}
+	}
+	var keysA, keysB []string
+	if fa, ok := a.(interface{ Foreach(func(string) bool) }); ok {
+		fa.Foreach(func(key string) bool {
+			keysA = append(keysA, key)
+			return true
+		})
+	} else {
+		return false
+	}
+	if fb, ok := b.(interface{ Foreach(func(string) bool) }); ok {
+		fb.Foreach(func(key string) bool {
+			keysB = append(keysB, key)
+			return true
+		})
+	} else {
+		return false
+	}
+	if len(keysA) != len(keysB) {
+		return false
+	}
+	for i := range keysA {
+		if keysA[i] != keysB[i] {
+			return false
+		}
+	}
+	return true
 }

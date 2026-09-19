@@ -60,7 +60,7 @@ type dnsOverQUIC struct {
 	connMu sync.RWMutex
 
 	addr           string
-	dialer         *dnsDialer
+	dialer         Dialer
 	skipCertVerify bool
 	nameCertVerify string
 }
@@ -94,12 +94,11 @@ func (doq *dnsOverQUIC) Address() string { return doq.addr }
 func (doq *dnsOverQUIC) ExchangeContext(ctx context.Context, m *D.Msg) (msg *D.Msg, err error) {
 	// When sending queries over a QUIC connection, the DNS Message ID MUST be
 	// set to zero.
-	m = m.Copy()
 	id := m.Id
-	m.Id = 0
+	ex := *m
+	ex.Id = 0
+	m = &ex
 	defer func() {
-		// Restore the original ID to not break compatibility with proxies.
-		m.Id = id
 		if msg != nil {
 			msg.Id = id
 		}
