@@ -3,6 +3,7 @@ package common
 import (
 	"strings"
 
+	"github.com/metacubex/mihomo/common/pool"
 	C "github.com/metacubex/mihomo/constant"
 )
 
@@ -33,7 +34,7 @@ func NewDomainSuffix(suffix string, adapter string) *DomainSuffix {
 	return &DomainSuffix{
 		Base:    Base{},
 		suffix:  strings.ToLower(suffix),
-		adapter: adapter,
+		adapter: pool.Intern(adapter),
 	}
 }
 

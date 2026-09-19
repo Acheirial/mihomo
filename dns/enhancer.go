@@ -5,6 +5,7 @@ import (
 	"net/netip"
 
 	"github.com/metacubex/mihomo/common/lru"
+	"github.com/metacubex/mihomo/common/pool"
 	"github.com/metacubex/mihomo/component/fakeip"
 	C "github.com/metacubex/mihomo/constant"
 )
@@ -112,7 +113,7 @@ func (h *ResolverEnhancer) FindHostByIP(ip netip.Addr) (string, bool) {
 
 func (h *ResolverEnhancer) InsertHostByIP(ip netip.Addr, host string) {
 	if mapping := h.mapping; mapping != nil {
-		h.mapping.Set(ip, host)
+		h.mapping.Set(ip, pool.Intern(host))
 	}
 }
 

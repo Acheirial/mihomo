@@ -34,8 +34,8 @@ import (
 )
 
 const (
-	queueCapacity  = 64  // chan capacity tcpQueue and udpQueue
-	senderCapacity = 128 // chan capacity of PacketSender
+	queueCapacity  = 64 // chan capacity tcpQueue and udpQueue
+	senderCapacity = 32 // chan capacity of PacketSender
 )
 
 var (

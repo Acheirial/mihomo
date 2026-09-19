@@ -134,11 +134,16 @@ func LoadGeoSiteMatcher(countryCode string) (router.DomainMatcher, error) {
 		matcher, err := router.NewDomainMatcher(domains)
 		mph：minimal perfect hash algorithm
 		*/
+		var m router.DomainMatcher
 		if geoSiteMatcher == "mph" {
-			return router.NewMphMatcherGroup(domains)
+			m, err = router.NewMphMatcherGroup(domains)
 		} else {
-			return router.NewSuccinctMatcherGroup(domains)
+			m, err = router.NewSuccinctMatcherGroup(domains)
 		}
+		if err == nil {
+			loadGeoSiteMatcherListSF.Forget(listName)
+		}
+		return m, err
 	})
 	if err != nil {
 		if !shared {

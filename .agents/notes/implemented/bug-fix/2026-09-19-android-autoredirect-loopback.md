@@ -12,7 +12,7 @@ Android keeps the IPv4 redirect server on `127.0.0.1:ephemeral`. When `Inet6Addr
 
 Missing `ip6tables` or a failed `::1` bind / IPv6 nat table setup turns `enableIPv6` off and logs, instead of failing the whole `Start`. `Close` closes both servers.
 
-sing-tun replace is `github.com/Acheirial/sing-tun v0.0.0-20260919145333-e71268e4e6ac` (`e71268e`, branch `go-stack`). That commit also cherry-picks metacubex/meta `8c8d293` / `af345a7` / `54cba48` (gVisor handshake watcher, system TCP NAT checksum, mipstack input batching) and drops the duplicate `rewriteIPv4TCP`/`rewriteIPv6TCP` that `af345a7` added on top of go-stack's `stack_rewrite.go`.
+sing-tun replace is `github.com/Acheirial/sing-tun v0.0.0-20260919165301-ba2bfb79e01a` (`ba2bfb7`, branch `go-stack`). That commit keeps Android AutoRedirect IPv4 on 127.0.0.1, routes IPv6 via TPROXY, and carries metacubex/meta's gVisor handshake watcher, system TCP NAT checksum, mipstack input batching, and go-stack's `stack_rewrite.go`.
 
 ## Alternatives considered
 
@@ -23,7 +23,7 @@ sing-tun replace is `github.com/Acheirial/sing-tun v0.0.0-20260919145333-e71268e
 ## Consequences
 
 - **收益**：Android IPv4 AutoRedirect works again; IPv6 is extra, not a requirement. IPv6 nat failures no longer take down IPv4.
-- **代价与已知上限**：two loopback sockets on Android dual-stack. `::1` bind failure silently disables IPv6 redirect (logged). Hotspot/tethering still needs VPNHotspot; this does not add PREROUTING on Android (iptables path still returns after OUTPUT, same as upstream).
+- **代价与已知上限**：two loopback sockets on Android dual-stack. `::1` bind failure silently disables IPv6 redirect (logged). Hotspot/tethering still needs VPNHotspot; this does not add PREROUTING on Android (iptables path still returns after OUTPUT, same as upstream). IPv6 interception after this note is TPROXY on `[::]`, not `::1` NAT; see [Android AutoRedirect IPv6 uses TPROXY](./2026-09-20-android-autoredirect-ipv6-tproxy.md).
 
 ## Verification
 

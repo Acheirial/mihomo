@@ -148,27 +148,43 @@ func TestDomainSpanMissSkipsLeafScan(t *testing.T) {
 	assert.Equal(t, 0, n)
 }
 
+func TestDomainSpanSameAdapterOptimization(t *testing.T) {
+	list := []C.Rule{
+		common.NewDomain("a.example", "DIRECT"),
+		common.NewDomainSuffix("b.example", "DIRECT"),
+	}
+	compiled := rules.CompileDomainSpans(list)
+	require.Len(t, compiled, 1)
+	span := compiled[0]
+	assert.Equal(t, "DIRECT", span.Adapter())
+	assert.Equal(t, "2 domains", span.Payload())
+
+	ok, ad := span.Match(hostMeta("a.example"), C.RuleMatchHelper{})
+	assert.True(t, ok)
+	assert.Equal(t, "DIRECT", ad)
+
+	ok, ad = span.Match(hostMeta("sub.b.example"), C.RuleMatchHelper{})
+	assert.True(t, ok)
+	assert.Equal(t, "DIRECT", ad)
+
+	ok, _ = span.Match(hostMeta("c.example"), C.RuleMatchHelper{})
+	assert.False(t, ok)
+}
+
 func BenchmarkDomainSpanMiss(b *testing.B) {
 	const n = 10000
 	list := make([]C.Rule, 0, n+1)
 	for i := 0; i < n; i++ {
 		list = append(list, common.NewDomain(fmt.Sprintf("block-%d.example", i), "REJECT"))
 	}
-	list = append(list, common.NewMatch("DIRECT"))
 	compiled := rules.CompileDomainSpans(list)
 	meta := hostMeta("unrelated.test")
 	helper := C.RuleMatchHelper{}
+	span := compiled[0]
 	b.ReportAllocs()
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		hit := false
-		for _, r := range compiled {
-			if ok, _ := r.Match(meta, helper); ok {
-				hit = true
-				break
-			}
-		}
-		if hit {
+		if ok, _ := span.Match(meta, helper); ok {
 			b.Fatal("unrelated host must miss the span")
 		}
 	}

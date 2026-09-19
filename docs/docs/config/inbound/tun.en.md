@@ -105,7 +105,7 @@ Linux only. Automatically configures iptables/nftables to redirect TCP connectio
 
 *On Android*:
 
-Forwards local IPv4 and IPv6 connections (IPv6 requires `inet6-address` and `ip6tables`). The redirect server listens on `127.0.0.1` / `::1`. To share your VPN connection via hotspot or tethering, please use [VPNHotspot](https://github.com/Mygod/VPNHotspot).
+Forwards local IPv4 and IPv6 connections (IPv6 requires `inet6-address` and `ip6tables`). IPv4 uses `nat OUTPUT REDIRECT` and listens on `127.0.0.1`; IPv6 uses `mangle TPROXY` (`IPV6_TRANSPARENT`) on `[::]` at the same port. To share your VPN connection via hotspot or tethering, please use [VPNHotspot](https://github.com/Mygod/VPNHotspot).
 
 *On Linux*:
 

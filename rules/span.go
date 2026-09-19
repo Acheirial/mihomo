@@ -3,6 +3,7 @@ package rules
 import (
 	"strconv"
 
+	"github.com/metacubex/mihomo/common/pool"
 	"github.com/metacubex/mihomo/component/trie"
 	C "github.com/metacubex/mihomo/constant"
 )
@@ -13,8 +14,12 @@ import (
 // wrappers stay intact. KEYWORD / REGEX / WILDCARD / GEOSITE / other types
 // interrupt the run and are never inserted.
 type domainSpan struct {
-	set   *trie.DomainSet
-	rules []C.Rule
+	set          *trie.DomainSet
+	rules        []C.Rule
+	adapter      string
+	numRules     int
+	sameAdapter  bool
+	hasWrappers  bool
 }
 
 func unwrapRule(r C.Rule) C.Rule {
@@ -59,18 +64,45 @@ func newDomainSpan(leaves []C.Rule) (*domainSpan, bool) {
 		return nil, false
 	}
 	var builder trie.DomainSetBuilder
+	firstAdapter := pool.Intern(leaves[0].Adapter())
+	sameAdapter := true
+	hasWrappers := false
+
 	for _, r := range leaves {
 		if err := insertDomainSpanLeaf(&builder, r); err != nil {
 			return nil, false
+		}
+		ad := pool.Intern(r.Adapter())
+		if ad != firstAdapter {
+			sameAdapter = false
+		}
+		if _, isWrapper := r.(C.RuleWrapper); isWrapper {
+			hasWrappers = true
 		}
 	}
 	set := builder.Build()
 	if set == nil {
 		return nil, false
 	}
-	copied := make([]C.Rule, len(leaves))
-	copy(copied, leaves)
-	return &domainSpan{set: set, rules: copied}, true
+
+	span := &domainSpan{
+		set:         set,
+		adapter:     firstAdapter,
+		numRules:    len(leaves),
+		sameAdapter: sameAdapter,
+		hasWrappers: hasWrappers,
+	}
+
+	// If all leaves share the identical adapter and none are custom wrappers with active hit/miss requirement,
+	// we can avoid retaining the full slice of rules, saving substantial memory.
+	if sameAdapter && !hasWrappers {
+		span.rules = nil
+	} else {
+		copied := make([]C.Rule, len(leaves))
+		copy(copied, leaves)
+		span.rules = copied
+	}
+	return span, true
 }
 
 // CompileDomainSpans replaces consecutive DOMAIN / DOMAIN-SUFFIX runs of length
@@ -115,6 +147,9 @@ func (s *domainSpan) Match(metadata *C.Metadata, helper C.RuleMatchHelper) (bool
 	if host == "" || s.set == nil || !s.set.Has(host) {
 		return false, ""
 	}
+	if s.sameAdapter && !s.hasWrappers {
+		return true, s.adapter
+	}
 	for _, r := range s.rules {
 		if ok, adapter := r.Match(metadata, helper); ok {
 			return ok, adapter
@@ -124,14 +159,11 @@ func (s *domainSpan) Match(metadata *C.Metadata, helper C.RuleMatchHelper) (bool
 }
 
 func (s *domainSpan) Adapter() string {
-	if len(s.rules) == 0 {
-		return ""
-	}
-	return s.rules[0].Adapter()
+	return s.adapter
 }
 
 func (s *domainSpan) Payload() string {
-	return strconv.Itoa(len(s.rules)) + " domains"
+	return strconv.Itoa(s.numRules) + " domains"
 }
 
 func (s *domainSpan) ProviderNames() []string {

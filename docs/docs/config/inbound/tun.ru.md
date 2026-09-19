@@ -105,7 +105,7 @@ tun:
 
 *На Android*:
 
-Перенаправляет локальные IPv4- и IPv6-соединения (IPv6 требует `inet6-address` и `ip6tables`). Сервер перенаправления слушает `127.0.0.1` / `::1`. Для совместного использования VPN-соединения через точку доступа или ретранслятор используйте [VPNHotspot](https://github.com/Mygod/VPNHotspot).
+Перенаправляет локальные IPv4- и IPv6-соединения (IPv6 требует `inet6-address` и `ip6tables`). IPv4 использует `nat OUTPUT REDIRECT` и слушает `127.0.0.1`; IPv6 использует `mangle TPROXY` (`IPV6_TRANSPARENT`) на `[::]` с тем же портом. Для совместного использования VPN-соединения через точку доступа или ретранслятор используйте [VPNHotspot](https://github.com/Mygod/VPNHotspot).
 
 *На Linux*:
 

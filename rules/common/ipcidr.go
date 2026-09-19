@@ -3,6 +3,7 @@ package common
 import (
 	"net/netip"
 
+	"github.com/metacubex/mihomo/common/pool"
 	C "github.com/metacubex/mihomo/constant"
 )
 
@@ -64,7 +65,7 @@ func NewIPCIDR(s string, adapter string, opts ...IPCIDROption) (*IPCIDR, error) 
 	ipcidr := &IPCIDR{
 		Base:    Base{},
 		ipnet:   ipnet,
-		adapter: adapter,
+		adapter: pool.Intern(adapter),
 	}
 
 	for _, o := range opts {

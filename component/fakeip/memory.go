@@ -5,6 +5,7 @@ import (
 	"sync/atomic"
 
 	"github.com/metacubex/mihomo/common/lru"
+	"github.com/metacubex/mihomo/common/pool"
 )
 
 type memoryStore struct {
@@ -27,7 +28,7 @@ func (m *memoryStore) GetByHost(host string) (netip.Addr, bool) {
 
 // PutByHost implements store.PutByHost
 func (m *memoryStore) PutByHost(host string, ip netip.Addr) {
-	m.cacheIP.Set(host, ip)
+	m.cacheIP.Set(pool.Intern(host), ip)
 }
 
 // GetByIP implements store.GetByIP.
@@ -40,7 +41,7 @@ func (m *memoryStore) GetByIP(ip netip.Addr) (string, bool) {
 
 // PutByIP implements store.PutByIP
 func (m *memoryStore) PutByIP(ip netip.Addr, host string) {
-	m.cacheHost.Set(ip, host)
+	m.cacheHost.Set(ip, pool.Intern(host))
 }
 
 // DelByIP implements store.DelByIP

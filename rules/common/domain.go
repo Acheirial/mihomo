@@ -3,6 +3,7 @@ package common
 import (
 	"strings"
 
+	"github.com/metacubex/mihomo/common/pool"
 	C "github.com/metacubex/mihomo/constant"
 )
 
@@ -32,7 +33,7 @@ func NewDomain(domain string, adapter string) *Domain {
 	return &Domain{
 		Base:    Base{},
 		domain:  strings.ToLower(domain),
-		adapter: adapter,
+		adapter: pool.Intern(adapter),
 	}
 }
 

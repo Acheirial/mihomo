@@ -79,10 +79,10 @@ func TestCopyWithIncreaseGrowsAfterThreshold(t *testing.T) {
 	assert.Equal(t, int64(len(payload)), n)
 	assert.Equal(t, payload, dst.Bytes())
 	require.Greater(t, len(src.sizes), 1)
-	assert.Equal(t, pool.RelayBufferSize, src.sizes[0])
+	assert.Equal(t, min(8*1024, pool.RelayBufferSize), src.sizes[0])
 	assert.Equal(t, 65535, src.sizes[len(src.sizes)-1])
 	for _, size := range src.sizes {
-		if size != pool.RelayBufferSize {
+		if size != min(8*1024, pool.RelayBufferSize) && size != pool.RelayBufferSize {
 			assert.Equal(t, 65535, size)
 		}
 	}
@@ -101,12 +101,14 @@ func TestCopyPooledIncreaseReusesBuffer(t *testing.T) {
 	for i, size := range src.sizes {
 		ptr := src.ptrs[i]
 		switch size {
-		case pool.RelayBufferSize:
+		case min(8*1024, pool.RelayBufferSize):
 			if small == 0 {
 				small = ptr
 			}
 			assert.Equal(t, small, ptr)
 			smallN++
+		case pool.RelayBufferSize:
+			// intermediate tier
 		case 65535:
 			if large == 0 {
 				large = ptr
