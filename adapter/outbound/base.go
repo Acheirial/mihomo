@@ -271,7 +271,9 @@ func (c *conn) ReaderReplaceable() bool {
 }
 
 func (c *conn) SyscallConn() (syscall.RawConn, error) {
-	if sc, ok := N.FindUpstream[syscall.Conn](c.ExtendedConn, nil); ok {
+	// Only WithUpstream wrappers (tracker, BufferedConn, ExtendedConnWrapper).
+	// Never tls.Conn.NetConn() — that inner TCP is ciphertext on the wire.
+	if sc, ok := N.FindWithUpstream[syscall.Conn](c.ExtendedConn, nil); ok {
 		return sc.SyscallConn()
 	}
 	return nil, syscall.EINVAL

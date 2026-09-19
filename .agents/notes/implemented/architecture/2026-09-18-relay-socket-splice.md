@@ -20,7 +20,7 @@ unwrap 链：
 
 - `tcpTracker`：`ReaderReplaceable`/`WriterReplaceable` 恒 true；`SyscallConn` 转发给内层 `C.Conn`；既有 `UnwrapReader`（download）/`UnwrapWriter`（upload）保留。
 - `udpTracker`：Replaceable 恒 true；`UnwrapPacketReader/Writer` 在内层实现 sing `PacketReader/Writer` 时带 CountFunc。
-- `outbound.conn`：`SyscallConn` 经 `FindUpstream[syscall.Conn]` 走到 raw socket。`*net.TCPConn` 仍不包 `deadline.Conn`。
+- `outbound.conn`：`SyscallConn` 经 `FindWithUpstream[syscall.Conn]` 只沿 `WithUpstream` 走，**不**跟 `tls.Conn.NetConn()`（那是密文 TCP）。`FindUpstream` 仍走 `NetConn()`，JLS `UserFromConn` 靠它找到内层 `*tls.Conn`。`*net.TCPConn` 仍不包 `deadline.Conn`。
 - `BufferedConn.SyscallConn` 由入站工作流实现：仅 `ReaderReplaceable()`（无残留 Peek）时转发，否则 error，禁止 splice-over-peek。
 
 retry：上限 10→3。`errHandshakeWritten` + `errIfHandshakeWritten(n, err)` 给 NeedHandshake 写路径：peek 已写出站后失败不再重拨。UDP 0b：`HandleUDPPacket` 对 `natTable.Get(key)` 命中直接 `sender.Send`，不进 64 槽；miss 仍排队，`senderCapacity` 128 仍有界，`udpDropped` 只计 worker-miss 满槽。
@@ -35,7 +35,7 @@ retry：上限 10→3。`errHandshakeWritten` + `errIfHandshakeWritten(n, err)` 
 ## Consequences
 
 - **收益**：Linux DIRECT 双 `*net.TCPConn`（经 tracker/outbound unwrap、BufferedConn 无残留 Peek）走 splice；面板流量在 CountFunc 下仍涨；握手已写 payload 后最多再试 2 次且可立即停；同 key UDP burst 不再默认挤满 64 槽。
-- **代价与已知上限**：非 Linux / 非 syscall.Conn / splice EINVAL 仍走池化拷贝，放大阈值未变。`BufferedConn` 有残留 Peek 时 `SyscallConn` 失败，Copy 走用户态——嗅探/握手未 Discard 完不能 splice。`collectCountReader` 是对 sing `UnwrapCountReader` 顺序的本地补丁，升 sing 若改顺序需重访。TUN 设备 splice 仍要等 sing-tun `SpliceSocket`，见 [perf-parity](./2026-09-17-perf-parity.md) 的已知上限。retry 从 10 降到 3 会让瞬时拨号失败更快放弃，这是刻意的。
+- **代价与已知上限**：非 Linux / 非 syscall.Conn / splice EINVAL 仍走池化拷贝，放大阈值未变。`BufferedConn` 有残留 Peek 时 `SyscallConn` 失败，Copy 走用户态——嗅探/握手未 Discard 完不能 splice。`FindWithUpstream` 不跟 `NetConn()`，TLS / Reality / uTLS 出站不会被 splice 打穿；Linux 入站互操作因此才能绿。`FindUpstream` 仍跟 `NetConn()`，不能拿它做 splice 判定。`collectCountReader` 是对 sing `UnwrapCountReader` 顺序的本地补丁，升 sing 若改顺序需重访。TUN 设备 splice 仍要等 sing-tun `SpliceSocket`，见 [perf-parity](./2026-09-17-perf-parity.md) 的已知上限。retry 从 10 降到 3 会让瞬时拨号失败更快放弃，这是刻意的。
 
 ## Verification
 
@@ -43,4 +43,5 @@ retry：上限 10→3。`errHandshakeWritten` + `errIfHandshakeWritten(n, err)` 
 - `TestRelayClosesOnEOFPeer`：net.Pipe 单向 EOF，2s 内 Relay 返回且两端读失败。
 - `TestCopyWithIncreaseCountFuncOnReplaceable`：Replaceable 包装的 CountFunc 在拷贝后仍累加。
 - `TestBufferedConnResidualPeekBlocksSyscall`：残留 Peek 时 `SyscallConn` 报 `errBufferedConnPeekResidual`，Copy 不得 splice-over-peek。
+- `TestFindWithUpstreamSkipsNetConn`：只实现 `NetConn()` 的包装不能被当成 splice 目标；`TestFindUpstreamStillWalksNetConn` 仍能剥到 raw TCP（JLS）。`TestNewConnSyscallConnSkipsNetConn`：出站 `NewConn` 包一层 `NetConn()` 后 `SyscallConn` 失败；裸 `*net.TCPConn` 仍成功。
 - Linux DIRECT 验收（编排者）：`strace -e splice` 命中；tracking 开时 `/connections` upload/download 仍涨。
