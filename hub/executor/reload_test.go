@@ -1,6 +1,8 @@
 package executor
 
 import (
+	"math"
+	"runtime/debug"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -23,9 +25,10 @@ import (
 )
 
 type delayProxyProvider struct {
-	name  string
-	delay time.Duration
-	in    *atomic.Bool
+	name   string
+	delay  time.Duration
+	in     *atomic.Bool
+	closed atomic.Int32
 }
 
 func (p *delayProxyProvider) Name() string               { return p.name }
@@ -39,6 +42,11 @@ func (p *delayProxyProvider) HealthCheck()               {}
 func (p *delayProxyProvider) Version() uint32            { return 0 }
 func (p *delayProxyProvider) HealthCheckURL() string     { return "" }
 func (p *delayProxyProvider) RegisterHealthCheckTask(url string, expectedStatus utils.IntRanges[uint16], filter string, interval uint) {
+}
+
+func (p *delayProxyProvider) Close() error {
+	p.closed.Add(1)
+	return nil
 }
 
 func (p *delayProxyProvider) Initial() error {
@@ -177,6 +185,10 @@ func (p *countingProvider) Initial() error {
 	return p.ProxyProvider.Initial()
 }
 
+func (p *countingProvider) Close() error {
+	return p.ProxyProvider.Close()
+}
+
 func TestApplyConfigRulesOnlyDoesNotSuspend(t *testing.T) {
 	cfg := minimalConfig()
 	ApplyConfig(cfg, false)
@@ -232,5 +244,43 @@ func TestDNSConfigUnchangedSkipsRebuild(t *testing.T) {
 	changed.Listen = "127.0.0.1:5353"
 	if dnsConfigUnchanged(&changed, true) {
 		t.Fatal("listen change must rebuild")
+	}
+}
+
+func TestApplyConfigClosesStaleProviders(t *testing.T) {
+	first := &delayProxyProvider{name: "stale"}
+	second := &delayProxyProvider{name: "stale"}
+	cfg1 := minimalConfig()
+	cfg1.Providers = map[string]P.ProxyProvider{"stale": first}
+	ApplyConfig(cfg1, false)
+	if n := first.closed.Load(); n != 0 {
+		t.Fatalf("first provider closed before swap: %d", n)
+	}
+
+	cfg2 := minimalConfig()
+	cfg2.Providers = map[string]P.ProxyProvider{"stale": second}
+	ApplyConfig(cfg2, false)
+	if n := first.closed.Load(); n != 1 {
+		t.Fatalf("stale provider Close count=%d want 1", n)
+	}
+	if n := second.closed.Load(); n != 0 {
+		t.Fatalf("replacement provider Close count=%d want 0", n)
+	}
+
+	cfg3 := minimalConfig()
+	cfg3.Providers = map[string]P.ProxyProvider{"stale": second}
+	ApplyConfig(cfg3, false)
+	if n := second.closed.Load(); n != 0 {
+		t.Fatalf("reused provider pointer was closed: %d", n)
+	}
+}
+
+func TestGOMemoryLimitZeroUnsets(t *testing.T) {
+	prev := debug.SetMemoryLimit(64 << 20)
+	t.Cleanup(func() { debug.SetMemoryLimit(prev) })
+	updateExperimental(&config.Experimental{GOMemoryLimit: 0})
+	got := debug.SetMemoryLimit(prev)
+	if got != math.MaxInt64 {
+		t.Fatalf("GOMemoryLimit 0 set limit %d want MaxInt64", got)
 	}
 }

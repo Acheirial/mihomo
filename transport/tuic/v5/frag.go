@@ -67,6 +67,7 @@ func (d *deFragger) init() {
 	if d.lru == nil {
 		d.lru = lru.New(
 			lru.WithAge[uint16, *packetBag](10),
+			lru.WithSize[uint16, *packetBag](256),
 			lru.WithUpdateAgeOnGet[uint16, *packetBag](),
 		)
 	}

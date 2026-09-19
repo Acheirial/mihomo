@@ -306,6 +306,10 @@ func (i *inlineProvider) VehicleType() P.VehicleType {
 	return P.Inline
 }
 
+func (i *InlineProvider) Close() error {
+	return nil
+}
+
 func (i *inlineProvider) MarshalJSON() ([]byte, error) {
 	return json.Marshal(
 		providerForApi{

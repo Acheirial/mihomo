@@ -27,7 +27,7 @@ Clash 热重载必须原地替换包级全局（面板 `PUT /configs`、SIGHUP�
 ## Consequences
 
 - **收益**：规则-only / 代理-only `PUT force=false` 不 Suspend，在途 TCP 不被 `!isHandle` Close，监听 fd 不被 unbind；10 个慢 HTTP provider 的 Suspend 窗口不再随 RTT 增长；proxies 热路径不再与 `UpdateProxies` 竞态；DNS 未变时不重建 resolver/enhancer。
-- **代价与已知上限**：Initial 在 Running 下跑，healthcheck 可能立刻拨号（可接受；reloadQuiet 未做）。`closeAllConnections` 仍在 `proxySetProvider.Initial` 里按 provider 名关连接——同名 provider 内容刷新仍会关走该 provider 链上的在途连接，这是订阅更新语义，不是 Suspend。DNS 相等比较对 Matcher 走 Stringer/Payload/Foreach，未知 Matcher 类型视为不等并重建（偏保守）。TUN Equal 算法未改。
+- **代价与已知上限**：Initial 在 Running 下跑，healthcheck 可能立刻拨号（可接受；reloadQuiet 未做）。`closeAllConnections` 仍在 `proxySetProvider.Initial` 里按 provider 名关连接——同名 provider 内容刷新仍会关走该 provider 链上的在途连接，这是订阅更新语义，不是 Suspend。被换下的 provider 对象在 `UpdateProxies`/`UpdateRules` 出锁后 Close，见 [provider-close-on-reload](./2026-09-19-provider-close-on-reload.md)。DNS 相等比较对 Matcher 走 Stringer/Payload/Foreach，未知 Matcher 类型视为不等并重建（偏保守）。TUN Equal 算法未改。
 
 ## Verification
 

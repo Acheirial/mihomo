@@ -12,7 +12,7 @@ This supersedes the “leave FakeIP mutex and `D.Msg.Copy` alone” slice of [20
 
 `allocMu` protects only `offset`/`cycle` and the allocate path in `Lookup`/`get`/`FlushFakeIP`/`StoreState`. `LookBack`/`Exist` talk only to `store`. `get` `PutByIP`s before publishing the new offset so a concurrent `LookBack` cannot see a recycled IP with no host. Geometry is unchanged: `first = gateway.Next().Next().Next()` (`.4`), gateway and broadcast excluded.
 
-`memoryStore.GetByIP` uses LRU `Peek` and does not touch `cacheIP`. `GetByHost` still heats both maps on Lookup so LRU eviction stays host-aligned.
+`memoryStore.GetByIP` uses LRU `Get` (MoveToBack) and does not touch `cacheIP`. Twin-map OnEvict and why Peek was reverted: [fakeip memoryStore LRU coupling](../bug-fix/2026-09-19-fakeip-memory-lru-evict.md). `GetByHost` still heats both maps on Lookup so LRU eviction stays host-aligned.
 
 `udpConnPool` is now `idleConnPool`: UDP stays single-slot (`max=1`, 30s idle); TCP is LIFO ≤8. `client.ExchangeContext` Acquire/Release for both schemas. Truncated UDP→TCP uses a per-client `tcpIdle` pool. Error and ctx cancel `Release(false)` close the conn. No pipelining.
 

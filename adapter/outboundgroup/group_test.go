@@ -54,6 +54,7 @@ func (p *staticProvider) VehicleType() P.VehicleType { return P.Compatible }
 func (p *staticProvider) Type() P.ProviderType       { return P.Proxy }
 func (p *staticProvider) Initial() error             { return nil }
 func (p *staticProvider) Update() error              { return nil }
+func (p *staticProvider) Close() error               { return nil }
 func (p *staticProvider) Proxies() []C.Proxy         { return p.proxies }
 func (p *staticProvider) Count() int                 { return len(p.proxies) }
 func (p *staticProvider) Touch()                     { p.touches.Add(1) }

@@ -29,7 +29,7 @@ func NewHosts(hosts *trie.DomainTrie[HostValue]) Hosts {
 }
 
 // Return the search result and whether to match the parameter `isDomain`
-func (h *Hosts) Search(domain string, isDomain bool) (*HostValue, bool) {
+func (h Hosts) Search(domain string, isDomain bool) (*HostValue, bool) {
 	if value := h.DomainTrie.Search(domain); value != nil {
 		hostValue := value.Data()
 		for {

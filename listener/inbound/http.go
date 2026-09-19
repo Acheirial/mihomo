@@ -80,6 +80,7 @@ func (h *HTTP) Listen(tunnel C.Tunnel) error {
 			h.Additions()...,
 		)
 		if err != nil {
+			_ = h.Close()
 			return err
 		}
 		h.l = append(h.l, l)

@@ -54,10 +54,17 @@ func (q *UploadQueue) Push(p Packet) error {
 		return nil
 	}
 
-	for len(q.packets) > q.maxPackets {
+	if p.Seq > q.nextSeq+uint64(q.maxPackets) {
+		return ErrQueueTooLarge
+	}
+
+	for len(q.packets) >= q.maxPackets {
 		q.condPopped.Wait() // wait for the reader to read the packets
 		if q.closed {
 			return io.ErrClosedPipe
+		}
+		if p.Seq > q.nextSeq+uint64(q.maxPackets) {
+			return ErrQueueTooLarge
 		}
 	}
 
@@ -95,7 +102,7 @@ func (q *UploadQueue) Read(b []byte) (int, error) {
 			return 0, io.EOF
 		}
 
-		if len(q.packets) > q.maxPackets {
+		if len(q.packets) >= q.maxPackets {
 			q.mu.Unlock()
 			// the "reassembly buffer" is too large, and we want to constrain memory usage somehow.
 			// let's tear down the connection and hope the application retries.
@@ -117,5 +124,8 @@ func (q *UploadQueue) Close() error {
 	q.closed = true
 	q.condPushed.Broadcast()
 	q.condPopped.Broadcast()
+	clear(q.packets)
+	q.buf = nil
+	q.reader = nil
 	return err
 }

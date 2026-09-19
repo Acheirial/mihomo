@@ -5,6 +5,7 @@ import (
 	"errors"
 	"io"
 	"net"
+	"reflect"
 	"sync/atomic"
 	"syscall"
 	"testing"
@@ -19,10 +20,12 @@ import (
 type recordingReader struct {
 	r     io.Reader
 	sizes []int
+	ptrs  []uintptr
 }
 
 func (r *recordingReader) Read(p []byte) (int, error) {
 	r.sizes = append(r.sizes, len(p))
+	r.ptrs = append(r.ptrs, reflect.ValueOf(p).Pointer())
 	return r.r.Read(p)
 }
 
@@ -83,6 +86,40 @@ func TestCopyWithIncreaseGrowsAfterThreshold(t *testing.T) {
 			assert.Equal(t, 65535, size)
 		}
 	}
+}
+
+func TestCopyPooledIncreaseReusesBuffer(t *testing.T) {
+	payload := make([]byte, copyIncreaseThreshold+pool.RelayBufferSize+2*65535)
+	src := &recordingReader{r: bytes.NewReader(payload)}
+	dst := &bytes.Buffer{}
+	n, err := copyWithIncrease(dst, src)
+	require.ErrorIs(t, err, io.EOF)
+	assert.Equal(t, int64(len(payload)), n)
+
+	var small, large uintptr
+	var smallN, largeN int
+	for i, size := range src.sizes {
+		ptr := src.ptrs[i]
+		switch size {
+		case pool.RelayBufferSize:
+			if small == 0 {
+				small = ptr
+			}
+			assert.Equal(t, small, ptr)
+			smallN++
+		case 65535:
+			if large == 0 {
+				large = ptr
+			}
+			assert.Equal(t, large, ptr)
+			largeN++
+		default:
+			t.Fatalf("unexpected buffer len %d", size)
+		}
+	}
+	require.Greater(t, smallN, 1)
+	require.Greater(t, largeN, 1)
+	assert.NotEqual(t, small, large)
 }
 
 func TestCopyWithIncreaseReadError(t *testing.T) {

@@ -83,7 +83,7 @@ func newDoHClient(urlString string, r resolver.Resolver, preferH3 bool, params m
 	doh := &dnsOverHTTPS{
 		url:    u,
 		addr:   u.String(),
-		dialer: newDNSDialer(r, proxyAdapter, proxyName),
+		dialer: newDNSDialer.Load()(r, proxyAdapter, proxyName),
 		quicConfig: &quic.Config{
 			KeepAlivePeriod: QUICKeepAlivePeriod,
 			TokenStore:      newQUICTokenStore(),

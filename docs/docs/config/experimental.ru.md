@@ -28,7 +28,7 @@ experimental:
 
 ## go-memory-limit
 
-Мягкий лимит памяти runtime Go, в MiB. `0` — не задавать (не вызывать `debug.SetMemoryLimit`). Это не значение `GOMEMLIMIT` по умолчанию.
+Мягкий лимит памяти runtime Go, в MiB. `0` снимает лимит (`debug.SetMemoryLimit(MaxInt64)`); no-op, если лимит никогда не задавался. Это не значение `GOMEMLIMIT` по умолчанию.
 
 ## go-gc-percent
 

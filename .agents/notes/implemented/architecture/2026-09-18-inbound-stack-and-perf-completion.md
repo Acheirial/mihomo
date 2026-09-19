@@ -25,7 +25,7 @@ perf-parity 「没做尽」的项：sing v0.5.7 的 `bufio.Copy` 已含 `copyDir
 
 **1a. `dns/client.go`：消除后台 goroutine 泄漏（最终实现）。**
 
-落地为幂等 `releaseConn`：ctx 取消分支先 `releaseConn(false)` 关 conn 解除 goroutine 阻塞，外层 defer 等 `done` 后的第二次 release 是 no-op；截断重试路径在 goroutine 内部 `releaseConn(false)` 归还 UDP conn 后再拨 TCP，主 defer 永不双重释放。
+落地为幂等 `releaseConn`：ctx 取消分支先 `releaseConn(false)` 关 conn 解除 goroutine 阻塞，外层 defer 等 `done` 后的第二次 release 是 no-op；截断重试路径在 goroutine 内部 `releaseConn(false)` 归还 UDP conn 后再拨 TCP，主 defer 永不双重释放。The bounded wait on `done` later switched from `time.After` to `NewTimer`+`Stop`; see [dns-exchange-timer-dot-doq-leaks](../bug-fix/2026-09-19-dns-exchange-timer-dot-doq-leaks.md).
 
 **1b. `common/net/sing.go`：`copyWithIncrease` 的 EOF 语义修正。**
 
@@ -95,14 +95,14 @@ func ApplyTransport(server *http.Server, tlsConfig *tls.Config, opt TransportOpt
 ### Workstream 3 — perf-parity 收尾（PerfParity）
 
 - `tunnel/statistic/manager.go`：`handle()` 的秒级 ticker 里追加 `m.updateMemory()`，`Snapshot()`/`Memory()` 直接读缓存值——把 `/proc` 读移出 REST 请求路径。
-- `config.Experimental` 加 `GOMemoryLimit uint64`（YAML `go-memory-limit`，单位 MiB，默认 0=不设）→ `debug.SetMemoryLimit`；加 `GOGCPercent int`（YAML `go-gc-percent`，默认 0=不设）→ `debug.SetGCPercent`，在 `hub/executor` 的 `updateExperimental` 应用。
-- **未做**：sing 的 `CopyWithCounters`/splice 直写——落地中发现 `bufio.CopyConn` 语义与 `Relay` 不兼容（见上），且 sing 的 `UnwrapCountReader` 会绕开统计器计数，需要先给 tracker 补 CountFunc 包装才安全，本轮回退保留本地 `copyWithIncrease`。
+- `config.Experimental` 加 `GOMemoryLimit uint64`（YAML `go-memory-limit`，单位 MiB）→ `debug.SetMemoryLimit`；加 `GOGCPercent int`（YAML `go-gc-percent`，默认 0=不设）→ `debug.SetGCPercent`，在 `hub/executor` 的 `updateExperimental` 应用。`GOMemoryLimit == 0` 现为 `SetMemoryLimit(math.MaxInt64)` 卸限，见 [provider-close-on-reload](./2026-09-19-provider-close-on-reload.md)。
+- **未做**：sing 的 `CopyWithCounters`/splice 直写——落地中发现 `bufio.CopyConn` 语义与 `Relay` 不兼容（见上），且 sing 的 `UnwrapCountReader` 会绕开统计器计数，需要先给 tracker 补 CountFunc 包装才安全，本轮回退保留本地 `copyWithIncrease`。该路径的缓冲复用见 [occupancy-copy-timer-queue](./2026-09-19-occupancy-copy-timer-queue.md)。
 
 ### Workstream 4 — 文档（InboundDocs）
 
 - 新增 `docs/docs/config/inbound/listeners/transport.{md,en.md,ru.md}`（入站传输层配置，对齐出站 `config/proxies/transport.md` 的风格，mkcp/mekya 字段集从 vmess.md 逐键复制），加入 mkdocs nav「通用字段」之后。
 - `docs/docs/config/inbound/listeners/{trojan,vless,anytls,snell,ss}.{md,en.md,ru.md}` 各加一行 `mkcp-config`/`mekya-config` 注释（三语本地化）。
-- `experimental.{md,en.md,ru.md}` 的 `go-memory-limit`/`go-gc-percent` 已补三语文档（YAML `0` = 不设置）。
+- `experimental.{md,en.md,ru.md}` 的 `go-memory-limit`/`go-gc-percent` 已补三语文档（`go-memory-limit: 0` 卸限，见 [provider-close-on-reload](./2026-09-19-provider-close-on-reload.md)）。
 
 ## Workstreams
 
@@ -132,6 +132,6 @@ func ApplyTransport(server *http.Server, tlsConfig *tls.Config, opt TransportOpt
 - `hub/route/server.go`（外部控制器 TLS）本轮**未**迁移，避免给 `route` 加反向依赖；它继续用本地实现，留待后续。
 - trojan/vless/anytls/snell/ss 入站选项新增 `mkcp-config`/`mekya-config` 字段，零值（不写）完全不启用、不创建 UDP socket——老配置行为不变。mkcp/mekya 与 ShadowTLS/Restls/JLS 的互斥目前只靠文档，服务端运行时强制是后续项。`NewVless` / `NewTrojan` 曾漏填 `RealityConfig`（Trojan 还漏 `JLSConfig`），CI 上 Reality 入站报「没有证书」；现已按 VMess 同样映射。
 - `copyWithIncrease` 返回 `io.EOF` 使 `Relay` 在对端 EOF 时全关双端；`listener/http/upgrade.go` 与 `sudoku/server.go` 这两个 `N.Relay` 调用方随全树构建验证，无行为破坏。
-- `go-memory-limit`/`go-gc-percent` 默认 0 时两个 debug 调用都不执行，行为与旧版本一致；实验文档三语已补。
+- `go-gc-percent` 默认 0 仍不调用 `SetGCPercent`；`go-memory-limit` 默认 0 现调用 `SetMemoryLimit(MaxInt64)` 卸限（冷启动与 runtime 初始值相同），见 [provider-close-on-reload](./2026-09-19-provider-close-on-reload.md)。实验文档三语仍写「0 = 不设置」。
 - 内存采样改为秒级后台 tick 后，`GET /memory` 返回的是最近一次采样值（≤1s 陈旧），换来了 REST 路径零 `/proc` 读。
 - 升 Go / bump sing-tun 拿 `SpliceSocket` 当时不在本篇范围；该重访已落地为 2A，见 [2A 在 metacubex/sing-tun 补 go 栈与 SpliceSocket](./2026-09-18-go-stack-sing-tun-2a.md)。本轮未做的 `CopyWithCounters`/tracker CountFunc 已由 [relay-socket-splice](./2026-09-18-relay-socket-splice.md) 落地（单向 Copy，不是 CopyConn）。

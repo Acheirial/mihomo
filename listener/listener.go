@@ -180,19 +180,23 @@ func ReCreateSocks(port int, tunnel C.Tunnel) {
 		return
 	}
 
-	tcpListener, err := socks.New(addr, tunnel)
-	if err != nil {
-		return
+	if !shouldTCPIgnore {
+		socksListener, err = socks.New(addr, tunnel)
+		if err != nil {
+			return
+		}
 	}
 
-	udpListener, err := socks.NewUDP(addr, tunnel)
-	if err != nil {
-		tcpListener.Close()
-		return
+	if !shouldUDPIgnore {
+		socksUDPListener, err = socks.NewUDP(addr, tunnel)
+		if err != nil {
+			if !shouldTCPIgnore && socksListener != nil {
+				socksListener.Close()
+				socksListener = nil
+			}
+			return
+		}
 	}
-
-	socksListener = tcpListener
-	socksUDPListener = udpListener
 
 	log.Infoln("SOCKS proxy listening at: %s", socksListener.Address())
 }
@@ -212,10 +216,13 @@ func ReCreateRedir(port int, tunnel C.Tunnel) {
 
 	if redirListener != nil {
 		if redirListener.RawAddress() == addr {
-			return
+			if redirUDPListener != nil {
+				return
+			}
+		} else {
+			redirListener.Close()
+			redirListener = nil
 		}
-		redirListener.Close()
-		redirListener = nil
 	}
 
 	if redirUDPListener != nil {
@@ -230,9 +237,11 @@ func ReCreateRedir(port int, tunnel C.Tunnel) {
 		return
 	}
 
-	redirListener, err = redir.New(addr, tunnel)
-	if err != nil {
-		return
+	if redirListener == nil {
+		redirListener, err = redir.New(addr, tunnel)
+		if err != nil {
+			return
+		}
 	}
 
 	redirUDPListener, err = tproxy.NewUDP(addr, tunnel)
@@ -409,10 +418,13 @@ func ReCreateTProxy(port int, tunnel C.Tunnel) {
 
 	if tproxyListener != nil {
 		if tproxyListener.RawAddress() == addr {
-			return
+			if tproxyUDPListener != nil {
+				return
+			}
+		} else {
+			tproxyListener.Close()
+			tproxyListener = nil
 		}
-		tproxyListener.Close()
-		tproxyListener = nil
 	}
 
 	if tproxyUDPListener != nil {
@@ -427,9 +439,11 @@ func ReCreateTProxy(port int, tunnel C.Tunnel) {
 		return
 	}
 
-	tproxyListener, err = tproxy.New(addr, tunnel)
-	if err != nil {
-		return
+	if tproxyListener == nil {
+		tproxyListener, err = tproxy.New(addr, tunnel)
+		if err != nil {
+			return
+		}
 	}
 
 	tproxyUDPListener, err = tproxy.NewUDP(addr, tunnel)
@@ -481,15 +495,22 @@ func ReCreateMixed(port int, tunnel C.Tunnel) {
 		return
 	}
 
-	mixedListener, err = mixed.New(addr, tunnel)
-	if err != nil {
-		return
+	if !shouldTCPIgnore {
+		mixedListener, err = mixed.New(addr, tunnel)
+		if err != nil {
+			return
+		}
 	}
 
-	mixedUDPLister, err = socks.NewUDP(addr, tunnel)
-	if err != nil {
-		mixedListener.Close()
-		return
+	if !shouldUDPIgnore {
+		mixedUDPLister, err = socks.NewUDP(addr, tunnel)
+		if err != nil {
+			if !shouldTCPIgnore && mixedListener != nil {
+				mixedListener.Close()
+				mixedListener = nil
+			}
+			return
+		}
 	}
 
 	log.Infoln("Mixed(http+socks) proxy listening at: %s", mixedListener.Address())
@@ -638,6 +659,7 @@ func PatchInboundListeners(newListenerMap map[string]C.InboundListener, tunnel C
 		}
 		if err := newListener.Listen(tunnel); err != nil {
 			log.Errorln("Listener %s listen err: %s", name, err.Error())
+			_ = newListener.Close()
 			continue
 		}
 		inboundListeners[name] = newListener

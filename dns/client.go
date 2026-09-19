@@ -78,9 +78,12 @@ func (c *client) ExchangeContext(ctx context.Context, m *D.Msg) (*D.Msg, error) 
 		// Wait for the goroutine to be done with conn before handing it back.
 		// The exchange is bounded by dClient.Timeout, so this is a bounded wait
 		// and a wedged exchange cannot keep the caller forever.
+		// NewTimer+Stop, not time.After: a finished wait must not leak a 5s timer.
+		timer := time.NewTimer(dnsClientTimeout)
+		defer timer.Stop()
 		select {
 		case <-done:
-		case <-time.After(dnsClientTimeout):
+		case <-timer.C:
 			reuse = false
 		}
 		releaseConn(reuse)
@@ -174,7 +177,7 @@ func newClient(addr string, resolver resolver.Resolver, netType string, params m
 	c := &client{
 		port:    port,
 		host:    host,
-		dialer:  newDNSDialer(resolver, proxyAdapter, proxyName),
+		dialer:  newDNSDialer.Load()(resolver, proxyAdapter, proxyName),
 		schema:  "udp",
 		pool:    newUDPConnPool(),
 		tcpIdle: newTCPConnPool(),

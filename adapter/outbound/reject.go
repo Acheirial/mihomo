@@ -146,19 +146,23 @@ func newDropConn() *dropConn {
 }
 
 func (rw *dropConn) Read(b []byte) (int, error) {
+	timer := time.NewTimer(C.DefaultDropTime)
+	defer timer.Stop()
 	select {
 	case <-rw.closeCh:
 		return 0, io.EOF
-	case <-time.After(C.DefaultDropTime):
+	case <-timer.C:
 		return 0, io.EOF
 	}
 }
 
 func (rw *dropConn) ReadBuffer(buffer *buf.Buffer) error {
+	timer := time.NewTimer(C.DefaultDropTime)
+	defer timer.Stop()
 	select {
 	case <-rw.closeCh:
 		return io.EOF
-	case <-time.After(C.DefaultDropTime):
+	case <-timer.C:
 		return io.EOF
 	}
 }

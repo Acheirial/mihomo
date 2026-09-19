@@ -28,7 +28,7 @@ Disable connection tracking (default `false`). When `true`, REST `/connections` 
 
 ## go-memory-limit
 
-Soft memory limit for the Go runtime, in MiB. `0` means unset (do not call `debug.SetMemoryLimit`). This is not a default `GOMEMLIMIT`.
+Soft memory limit for the Go runtime, in MiB. `0` unsets the limit (`debug.SetMemoryLimit(MaxInt64)`); a no-op if it was never set. This is not a default `GOMEMLIMIT`.
 
 ## go-gc-percent
 

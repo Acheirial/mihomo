@@ -72,7 +72,7 @@ var _ dnsClient = (*dnsOverQUIC)(nil)
 func newDoQ(addr string, resolver resolver.Resolver, params map[string]string, proxyAdapter C.ProxyAdapter, proxyName string) *dnsOverQUIC {
 	doq := &dnsOverQUIC{
 		addr:   addr,
-		dialer: newDNSDialer(resolver, proxyAdapter, proxyName),
+		dialer: newDNSDialer.Load()(resolver, proxyAdapter, proxyName),
 		quicConfig: &quic.Config{
 			KeepAlivePeriod: QUICKeepAlivePeriod,
 			TokenStore:      newQUICTokenStore(),
@@ -160,16 +160,15 @@ func (doq *dnsOverQUIC) exchangeQUIC(ctx context.Context, msg *D.Msg) (resp *D.M
 	// be encoded as a 2-octet length field followed by the message content as
 	// specified in [RFC1035].
 	// Note: we do not support receiving multiple messages over a single connection.
-	buf := pool.Get(2 + MaxMsgSize)
+	buf := pool.Get(MaxMsgSize)
 	defer pool.Put(buf)
-	b, err := msg.PackBuffer(buf[2:])
+	b, err := msg.PackBuffer(buf)
 	if err != nil {
 		return nil, fmt.Errorf("failed to pack DNS message for DoQ: %w", err)
 	}
 	if len(b) > MaxMsgSize {
 		return nil, fmt.Errorf("DNS message is too large: %d > %d", len(b), MaxMsgSize)
 	}
-	binary.BigEndian.PutUint16(buf, uint16(len(b)))
 
 	var conn *quic.Conn
 	conn, err = doq.getConnection(ctx, true)
@@ -188,7 +187,13 @@ func (doq *dnsOverQUIC) exchangeQUIC(ctx context.Context, msg *D.Msg) (resp *D.M
 	})
 	defer stop()
 
-	_, err = stream.Write(buf[:2+len(b)])
+	var lenHdr [2]byte
+	binary.BigEndian.PutUint16(lenHdr[:], uint16(len(b)))
+	_, err = stream.Write(lenHdr[:])
+	if err != nil {
+		return nil, fmt.Errorf("failed to write to a QUIC stream: %w", err)
+	}
+	_, err = stream.Write(b)
 	if err != nil {
 		return nil, fmt.Errorf("failed to write to a QUIC stream: %w", err)
 	}
@@ -199,12 +204,12 @@ func (doq *dnsOverQUIC) exchangeQUIC(ctx context.Context, msg *D.Msg) (resp *D.M
 	// write-direction of the stream, but does not prevent reading from it.
 	_ = stream.Close()
 
-	// -- reading the response ---
-	var respLen uint16
-	err = binary.Read(stream, binary.BigEndian, &respLen)
+	var lenBuf [2]byte
+	_, err = io.ReadFull(stream, lenBuf[:])
 	if err != nil {
 		return nil, fmt.Errorf("reading response length from %s: %w", doq.Address(), err)
 	}
+	respLen := binary.BigEndian.Uint16(lenBuf[:])
 	if respLen == 0 {
 		return nil, fmt.Errorf("received empty response from %s", doq.Address())
 	}
@@ -253,6 +258,10 @@ func (doq *dnsOverQUIC) getConnection(ctx context.Context, useCached bool) (*qui
 
 	doq.connMu.Lock()
 	defer doq.connMu.Unlock()
+
+	if useCached && doq.conn != nil {
+		return doq.conn, nil
+	}
 
 	var err error
 	conn, err = doq.openConnection(ctx)

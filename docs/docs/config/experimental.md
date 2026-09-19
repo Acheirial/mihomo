@@ -28,7 +28,7 @@ experimental:
 
 ## go-memory-limit
 
-Go runtime 软内存上限，单位 MiB。`0` 表示不设置（不调用 `debug.SetMemoryLimit`），并非默认开启 `GOMEMLIMIT`。
+Go runtime 软内存上限，单位 MiB。`0` 表示卸限（`debug.SetMemoryLimit(MaxInt64)`）；从未设置过时与默认相同。并非默认开启 `GOMEMLIMIT`。
 
 ## go-gc-percent
 

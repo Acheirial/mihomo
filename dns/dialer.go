@@ -6,6 +6,7 @@ import (
 	"net/netip"
 	"strconv"
 
+	"github.com/metacubex/mihomo/common/atomic"
 	"github.com/metacubex/mihomo/component/dialer"
 	"github.com/metacubex/mihomo/component/resolver"
 	C "github.com/metacubex/mihomo/constant"
@@ -20,13 +21,13 @@ type Dialer = interface {
 
 type DialerFactory func(r resolver.Resolver, proxyAdapter C.ProxyAdapter, proxyName string) Dialer
 
-var newDNSDialer DialerFactory = defaultDNSDialer
+var newDNSDialer = atomic.NewTypedValue(DialerFactory(defaultDNSDialer))
 
 func SetDialerFactory(f DialerFactory) {
 	if f == nil {
 		panic("dns: SetDialerFactory requires a non-nil factory")
 	}
-	newDNSDialer = f
+	newDNSDialer.Store(f)
 }
 
 func defaultDNSDialer(r resolver.Resolver, proxyAdapter C.ProxyAdapter, proxyName string) Dialer {

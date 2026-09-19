@@ -95,6 +95,10 @@ func (c *Client) connectToServer(dialer utils.PacketDialer) error {
 		return fmt.Errorf("auth error: %s", msg)
 	}
 	// All good
+	// Close previous session so its handleMessage goroutine exits.
+	if c.quicSession != nil {
+		_ = c.quicSession.CloseWithError(closeErrorCodeGeneric, "")
+	}
 	c.udpSessionMap = make(map[uint32]chan *udpMessage)
 	go c.handleMessage(qs)
 	c.quicSession = qs

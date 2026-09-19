@@ -175,8 +175,9 @@ func collectCountWriter(dst io.Writer, counts []network.CountFunc) (io.Writer, [
 
 func copyPooledIncrease(dst io.Writer, src io.Reader, written int64, readCounters, writeCounters []network.CountFunc) (int64, error) {
 	n := pool.RelayBufferSize
+	buf := pool.Get(n)
+	defer func() { pool.Put(buf) }()
 	for {
-		buf := pool.Get(n)
 		nr, er := src.Read(buf)
 		if nr > 0 {
 			nw, ew := dst.Write(buf[:nr])
@@ -189,25 +190,24 @@ func copyPooledIncrease(dst io.Writer, src io.Reader, written int64, readCounter
 				for _, counter := range writeCounters {
 					counter(wn)
 				}
-				if n == pool.RelayBufferSize && written > copyIncreaseThreshold {
-					n = 65535
-				}
 			}
 			if ew != nil {
-				pool.Put(buf)
 				return written, ew
 			}
 			if nr != nw {
-				pool.Put(buf)
 				return written, io.ErrShortWrite
 			}
 		}
-		pool.Put(buf)
 		if er != nil {
 			if er == io.EOF {
 				return written, io.EOF
 			}
 			return written, er
+		}
+		if n == pool.RelayBufferSize && written > copyIncreaseThreshold {
+			n = 65535
+			pool.Put(buf)
+			buf = pool.Get(n)
 		}
 	}
 }

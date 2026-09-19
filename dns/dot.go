@@ -47,6 +47,25 @@ func (t *dnsOverTLS) ExchangeContext(ctx context.Context, m *D.Msg) (*D.Msg, err
 	}
 	ch := make(chan result, 1)
 
+	var flightMu sync.Mutex
+	var flight net.Conn // non-nil while ExchangeWithConn owns it
+
+	setFlight := func(conn net.Conn) {
+		flightMu.Lock()
+		flight = conn
+		flightMu.Unlock()
+	}
+	// takeFlight claims conn so a concurrent cancel will not Close it.
+	takeFlight := func(conn net.Conn) bool {
+		flightMu.Lock()
+		ok := flight == conn
+		if ok {
+			flight = nil
+		}
+		flightMu.Unlock()
+		return ok
+	}
+
 	go func() {
 		var msg *D.Msg
 		var err error
@@ -75,6 +94,7 @@ func (t *dnsOverTLS) ExchangeContext(ctx context.Context, m *D.Msg) (*D.Msg, err
 				}
 				isOldConn = false
 			}
+			setFlight(conn)
 
 			dClient := &D.Client{
 				UDPSize: 4096,
@@ -87,7 +107,9 @@ func (t *dnsOverTLS) ExchangeContext(ctx context.Context, m *D.Msg) (*D.Msg, err
 
 			msg, _, err = dClient.ExchangeWithConn(m, dConn)
 			if err != nil {
-				_ = conn.Close()
+				if takeFlight(conn) {
+					_ = conn.Close()
+				}
 				conn = nil
 				if isOldConn { // retry
 					continue
@@ -95,7 +117,13 @@ func (t *dnsOverTLS) ExchangeContext(ctx context.Context, m *D.Msg) (*D.Msg, err
 				return
 			}
 
+			// Drop in-flight before PushBack so a concurrent ctx cancel
+			// cannot Close a conn already returned to the LIFO deque.
+			owned := takeFlight(conn)
 			if !t.disableReuse {
+				if !owned {
+					return
+				}
 				t.access.Lock()
 				if t.connections.Len() >= maxOldDotConns {
 					oldConn := t.connections.PopFront()
@@ -103,7 +131,7 @@ func (t *dnsOverTLS) ExchangeContext(ctx context.Context, m *D.Msg) (*D.Msg, err
 				}
 				t.connections.PushBack(conn)
 				t.access.Unlock()
-			} else {
+			} else if owned {
 				_ = conn.Close()
 			}
 			return
@@ -112,6 +140,13 @@ func (t *dnsOverTLS) ExchangeContext(ctx context.Context, m *D.Msg) (*D.Msg, err
 
 	select {
 	case <-ctx.Done():
+		flightMu.Lock()
+		c := flight
+		flight = nil
+		flightMu.Unlock()
+		if c != nil {
+			_ = c.Close() // unblock miekg's 5s ExchangeWithConn
+		}
 		return nil, ctx.Err()
 	case ret := <-ch:
 		return ret.msg, ret.err
@@ -167,7 +202,7 @@ func newDoTClient(addr string, resolver resolver.Resolver, params map[string]str
 	c := &dnsOverTLS{
 		port:   port,
 		host:   host,
-		dialer: newDNSDialer(resolver, proxyAdapter, proxyName),
+		dialer: newDNSDialer.Load()(resolver, proxyAdapter, proxyName),
 	}
 	c.connections.SetBaseCap(maxOldDotConns)
 	if params["skip-cert-verify"] == "true" {

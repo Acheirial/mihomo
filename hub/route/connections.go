@@ -44,6 +44,7 @@ func getConnections(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		return
 	}
+	defer conn.Close()
 
 	intervalStr := r.URL.Query().Get("interval")
 	interval := 1000
@@ -56,6 +57,9 @@ func getConnections(w http.ResponseWriter, r *http.Request) {
 		}
 
 		interval = t
+	}
+	if interval <= 0 {
+		interval = 1000 // time.NewTicker panics on <=0
 	}
 
 	buf := &bytes.Buffer{}

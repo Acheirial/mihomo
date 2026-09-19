@@ -190,6 +190,83 @@ func TestPool_DoubleMapping(t *testing.T) {
 	assert.NotEqual(t, bazIP, newBazIP)
 }
 
+func TestPool_LookBackKeepsReverseMapping(t *testing.T) {
+	ipnet := netip.MustParsePrefix("192.168.0.1/24")
+	pool, _ := New(Options{
+		IPNet: ipnet,
+		Size:  2,
+	})
+
+	fooIP := pool.Lookup("foo.com")
+	barIP := pool.Lookup("bar.com")
+
+	// LookBack must MoveToBack cacheHost; otherwise foo is the next eviction.
+	host, ok := pool.LookBack(fooIP)
+	assert.True(t, ok)
+	assert.Equal(t, "foo.com", host)
+
+	bazIP := pool.Lookup("baz.com")
+
+	fooHost, fooOK := pool.LookBack(fooIP)
+	_, barOK := pool.LookBack(barIP)
+	bazHost, bazOK := pool.LookBack(bazIP)
+
+	assert.True(t, fooOK)
+	assert.Equal(t, "foo.com", fooHost)
+	assert.False(t, barOK)
+	assert.True(t, bazOK)
+	assert.Equal(t, "baz.com", bazHost)
+	assert.True(t, pool.Exist(fooIP))
+	assert.False(t, pool.Exist(barIP))
+	assert.Equal(t, fooIP, pool.Lookup("foo.com"))
+
+	newBar := pool.Lookup("bar.com")
+	assert.NotEqual(t, fooIP, newBar)
+	assert.NotEqual(t, bazIP, newBar)
+	h, ok := pool.LookBack(newBar)
+	assert.True(t, ok)
+	assert.Equal(t, "bar.com", h)
+	h, ok = pool.LookBack(fooIP)
+	assert.True(t, ok)
+	assert.Equal(t, "foo.com", h)
+}
+
+func TestMemoryStore_EvictDeletesTwin(t *testing.T) {
+	s := newMemoryStore(2)
+	ip1 := netip.MustParseAddr("192.168.0.4")
+	ip2 := netip.MustParseAddr("192.168.0.5")
+	ip3 := netip.MustParseAddr("192.168.0.6")
+	ip4 := netip.MustParseAddr("192.168.0.7")
+
+	s.PutByIP(ip1, "a.com")
+	s.PutByHost("a.com", ip1)
+	s.PutByIP(ip2, "b.com")
+	s.PutByHost("b.com", ip2)
+
+	// overflow cacheHost only: ip1 must not remain reachable via GetByHost
+	s.PutByIP(ip3, "c.com")
+	assert.False(t, s.Exist(ip1))
+	_, ok := s.GetByHost("a.com")
+	assert.False(t, ok)
+	assert.True(t, s.Exist(ip2))
+	h, ok := s.GetByIP(ip2)
+	assert.True(t, ok)
+	assert.Equal(t, "b.com", h)
+
+	s.PutByHost("c.com", ip3)
+
+	// overflow cacheIP only: b.com's IP must leave the reverse map
+	s.PutByHost("d.com", ip4)
+	assert.False(t, s.Exist(ip2))
+	_, ok = s.GetByHost("b.com")
+	assert.False(t, ok)
+	_, ok = s.GetByIP(ip2)
+	assert.False(t, ok)
+	got, ok := s.GetByHost("c.com")
+	assert.True(t, ok)
+	assert.Equal(t, ip3, got)
+}
+
 func TestPool_Clone(t *testing.T) {
 	ipnet := netip.MustParsePrefix("192.168.0.1/24")
 	pool, _ := New(Options{

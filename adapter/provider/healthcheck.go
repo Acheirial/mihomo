@@ -66,7 +66,9 @@ func (hc *HealthCheck) process() {
 }
 
 func (hc *HealthCheck) setProxies(proxies []C.Proxy) {
+	hc.mu.Lock()
 	hc.proxies = proxies
+	hc.mu.Unlock()
 }
 
 func (hc *HealthCheck) registerHealthCheckTask(url string, expectedStatus utils.IntRanges[uint16], filter string, interval uint) {
@@ -125,7 +127,22 @@ func (hc *HealthCheck) touch() {
 }
 
 func (hc *HealthCheck) check() {
-	if len(hc.proxies) == 0 {
+	hc.mu.Lock()
+	proxies := append([]C.Proxy(nil), hc.proxies...)
+	extra := make(map[string]*extraOption, len(hc.extra))
+	for url, option := range hc.extra {
+		cloned := &extraOption{expectedStatus: option.expectedStatus}
+		if len(option.filters) != 0 {
+			cloned.filters = make(map[string]struct{}, len(option.filters))
+			for filter := range option.filters {
+				cloned.filters[filter] = struct{}{}
+			}
+		}
+		extra[url] = cloned
+	}
+	hc.mu.Unlock()
+
+	if len(proxies) == 0 {
 		return
 	}
 
@@ -137,13 +154,11 @@ func (hc *HealthCheck) check() {
 
 		// execute default health check
 		option := &extraOption{filters: nil, expectedStatus: hc.expectedStatus}
-		hc.execute(b, hc.url, id, option)
+		hc.execute(b, hc.url, id, option, proxies)
 
 		// execute extra health check
-		if len(hc.extra) != 0 {
-			for url, option := range hc.extra {
-				hc.execute(b, url, id, option)
-			}
+		for url, option := range extra {
+			hc.execute(b, url, id, option, proxies)
 		}
 		_ = b.Wait()
 		log.Debugln("Finish A Health Checking {%s}", id)
@@ -151,7 +166,7 @@ func (hc *HealthCheck) check() {
 	})
 }
 
-func (hc *HealthCheck) execute(b *errgroup.Group, url, uid string, option *extraOption) {
+func (hc *HealthCheck) execute(b *errgroup.Group, url, uid string, option *extraOption, proxies []C.Proxy) {
 	url = strings.TrimSpace(url)
 	if len(url) == 0 {
 		log.Debugln("Health Check has been skipped due to testUrl is empty, {%s}", uid)
@@ -172,7 +187,7 @@ func (hc *HealthCheck) execute(b *errgroup.Group, url, uid string, option *extra
 		}
 	}
 
-	for _, proxy := range hc.proxies {
+	for _, proxy := range proxies {
 		// skip proxies that do not require health check
 		if filterReg != nil {
 			if match, _ := filterReg.MatchString(proxy.Name()); !match {

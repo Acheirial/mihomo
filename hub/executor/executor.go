@@ -2,6 +2,7 @@ package executor
 
 import (
 	"fmt"
+	"math"
 	"net"
 	"net/netip"
 	"os"
@@ -244,9 +245,11 @@ func updateExperimental(c *config.Experimental) {
 		_ = os.Setenv("QUIC_GO_DISABLE_ECN", strconv.FormatBool(true))
 	}
 	resolver.SetIP4PEnable(c.IP4PEnable)
-	// GOMemoryLimit is in MiB and GOGCPercent is a percentage; 0 means unset, leaving the runtime default.
+	// GOMemoryLimit is in MiB; 0 unsets the runtime limit (SetMemoryLimit(MaxInt64)).
 	if c.GOMemoryLimit > 0 {
 		debug.SetMemoryLimit(int64(c.GOMemoryLimit) << 20)
+	} else {
+		debug.SetMemoryLimit(math.MaxInt64)
 	}
 	if c.GOGCPercent != 0 {
 		debug.SetGCPercent(c.GOGCPercent)
@@ -344,7 +347,7 @@ func updateDNS(c *config.DNS, generalIPv6 bool) {
 }
 
 func updateHosts(tree *trie.DomainTrie[resolver.HostValue]) {
-	resolver.DefaultHosts = resolver.NewHosts(tree)
+	resolver.DefaultHosts.Store(resolver.NewHosts(tree))
 }
 
 func updateProxies(proxies map[string]C.Proxy, providers map[string]P.ProxyProvider) {
@@ -587,6 +590,22 @@ func updateIPTables(cfg *config.Config) {
 
 func Shutdown() {
 	listener.Cleanup()
+	for name, p := range tunnel.Providers() {
+		if any(p) == nil {
+			continue
+		}
+		if err := p.Close(); err != nil {
+			log.Warnln("[Provider] close %s error: %s", name, err.Error())
+		}
+	}
+	for name, p := range tunnel.RuleProviders() {
+		if any(p) == nil {
+			continue
+		}
+		if err := p.Close(); err != nil {
+			log.Warnln("[Provider] close %s error: %s", name, err.Error())
+		}
+	}
 	tproxy.CleanupTProxyIPTables()
 	resolver.StoreFakePoolState()
 

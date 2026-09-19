@@ -70,6 +70,7 @@ type Provider interface {
 	Type() ProviderType
 	Initial() error
 	Update() error
+	Close() error
 }
 
 // ProxyProvider interface
