@@ -626,20 +626,20 @@ func handleTCPConn(connCtx C.ConnContext) {
 		if err != nil {
 			return
 		}
+		defer func() {
+			if err != nil && remoteConn != nil {
+				_ = remoteConn.Close()
+				for _, chain := range remoteConn.Chains() {
+					if chain == "REJECT" {
+						err = nil
+						return
+					}
+				}
+				remoteConn = nil
+			}
+		}()
 
 		if N.NeedHandshake(remoteConn) {
-			defer func() {
-				if err != nil {
-					_ = remoteConn.Close()
-					for _, chain := range remoteConn.Chains() {
-						if chain == "REJECT" {
-							err = nil
-							return
-						}
-					}
-					remoteConn = nil
-				}
-			}()
 			peekMutex.Lock()
 			defer peekMutex.Unlock()
 			if conn.Buffered() == 0 {
@@ -654,9 +654,7 @@ func handleTCPConn(connCtx C.ConnContext) {
 			if err != nil {
 				return
 			}
-			if peekLen = len(peekBytes); peekLen > 0 {
-				_, _ = conn.Discard(peekLen)
-			}
+			peekLen = len(peekBytes)
 		}
 		return
 	}, func(err error) {
@@ -664,6 +662,9 @@ func handleTCPConn(connCtx C.ConnContext) {
 	})
 	if err != nil {
 		return
+	}
+	if peekLen > 0 {
+		_, _ = conn.Discard(peekLen)
 	}
 	logMetadata(metadata, rule, remoteConn)
 

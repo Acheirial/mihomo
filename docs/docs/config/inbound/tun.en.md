@@ -76,16 +76,15 @@ Enable TUN mode.
 
 ## stack
 
-TUN mode protocol stack. If no usage issues occur, `mixed` stack is recommended. Default is `gvisor`.
+TUN mode protocol stack. If no usage issues occur, `system` stack is recommended. Default is `system`.
 
-Available values: `system/gvisor/mixed/mips/go`
+Available values: `system/mips/go`
 
 !!! note "Differences between protocol stacks"
     * `system` uses the system protocol stack, providing a more stable/comprehensive TUN experience with relatively lower resource usage compared to other stacks.
-    * `gvisor` implements the network protocol stack in user space, offering higher security and isolation while avoiding context switching between the OS kernel and user space, which can yield better network processing performance under specific conditions.
-    * `mixed` is a hybrid stack where TCP uses the `system` stack and UDP uses the `gvisor` stack, potentially delivering a better overall user experience.
     * `mips` uses the IP stack developed by mihomo.
-    * `go` is a pure-Go stack; on Linux DIRECT TCP/UDP can splice. Default remains gvisor; set `stack: go` to opt in. ICMP echo is answered locally, not forwarded via PrepareConnection.
+    * `go` is a pure-Go stack; on Linux DIRECT TCP/UDP can splice. ICMP echo is answered locally, not forwarded via PrepareConnection.
+    * [Simple Performance Test](#network-loopback-test-for-tun-protocol-stacks)
     * [Simple Performance Test](#network-loopback-test-for-tun-protocol-stacks)
     * If the firewall is turned on, `system` and `mixed` protocol stacks cannot be used. Allow the core binary through the firewall using the following methods:
     * Windows: Settings -> Windows Security -> Allow an app through firewall -> Select the core binary.
@@ -106,7 +105,7 @@ Linux only. Automatically configures iptables/nftables to redirect TCP connectio
 
 *On Android*:
 
-Only forwards local IPv4 connections. To share your VPN connection via hotspot or tethering, please use [VPNHotspot](https://github.com/Mygod/VPNHotspot).
+Forwards local IPv4 and IPv6 connections (IPv6 requires `inet6-address`). To share your VPN connection via hotspot or tethering, please use [VPNHotspot](https://github.com/Mygod/VPNHotspot).
 
 *On Linux*:
 

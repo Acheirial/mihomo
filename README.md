@@ -61,10 +61,10 @@ Set go proxy if a connection to GitHub is not possible:
 go env -w GOPROXY=https://goproxy.io,direct
 ```
 
-Build with gvisor tun stack:
+Build:
 
 ```shell
-go build -tags with_gvisor
+go build
 ```
 
 ### IPTABLES configuration

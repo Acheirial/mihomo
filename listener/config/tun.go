@@ -63,9 +63,6 @@ type Tun struct {
 	// darwin special config
 	RecvMsgX bool `yaml:"recvmsgx" json:"recvmsgx,omitempty"`
 	SendMsgX bool `yaml:"sendmsgx" json:"sendmsgx,omitempty"`
-
-	// gvisor special config (Non-public option; do not include it in the document.)
-	ProcessorsPerChannel int `yaml:"processors-per-channel" json:"processors-per-channel,omitempty"`
 }
 
 func (t *Tun) Sort() {
@@ -232,10 +229,6 @@ func (t *Tun) Equal(other Tun) bool {
 		return false
 	}
 	if t.SendMsgX != other.SendMsgX {
-		return false
-	}
-
-	if t.ProcessorsPerChannel != other.ProcessorsPerChannel {
 		return false
 	}
 

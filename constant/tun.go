@@ -6,17 +6,13 @@ import (
 )
 
 var StackTypeMapping = map[string]TUNStack{
-	strings.ToLower(TunGvisor.String()): TunGvisor,
 	strings.ToLower(TunSystem.String()): TunSystem,
-	strings.ToLower(TunMixed.String()):  TunMixed,
 	strings.ToLower(TunMips.String()):   TunMips,
 	strings.ToLower(TunGo.String()):     TunGo,
 }
 
 const (
-	TunGvisor TUNStack = iota
-	TunSystem
-	TunMixed
+	TunSystem TUNStack = iota
 	TunMips
 	TunGo
 )
@@ -40,12 +36,8 @@ func (e TUNStack) MarshalText() ([]byte, error) {
 
 func (e TUNStack) String() string {
 	switch e {
-	case TunGvisor:
-		return "gVisor"
 	case TunSystem:
 		return "System"
-	case TunMixed:
-		return "Mixed"
 	case TunMips:
 		return "Mips"
 	case TunGo:

@@ -20,7 +20,6 @@ import (
 	"github.com/metacubex/mihomo/component/resolver"
 	"github.com/metacubex/mihomo/component/slowdown"
 	C "github.com/metacubex/mihomo/constant"
-	"github.com/metacubex/mihomo/constant/features"
 	"github.com/metacubex/mihomo/dns"
 	"github.com/metacubex/mihomo/log"
 
@@ -37,9 +36,8 @@ import (
 )
 
 const (
-	ipStackAuto   = "auto"
-	ipStackGVisor = "gvisor"
-	ipStackMips   = "mips"
+	ipStackAuto = "auto"
+	ipStackMips = "mips"
 )
 
 type wireguardGoDevice interface {
@@ -156,12 +154,8 @@ func (o *IPStackOption) normalize() {
 func (o IPStackOption) validate() error {
 	switch o.Mode {
 	case ipStackAuto, ipStackMips:
-	case ipStackGVisor:
-		if !features.WithGVisor {
-			return errors.New("gVisor IP stack requires the with_gvisor build tag")
-		}
 	default:
-		return fmt.Errorf("invalid IP stack mode %q; expected auto, gvisor, or mips", o.Mode)
+		return fmt.Errorf("invalid IP stack mode %q; expected auto or mips", o.Mode)
 	}
 	switch o.CongestionController {
 	case "", mipstack.CongestionControlCUBIC, mipstack.CongestionControlReno, mipstack.CongestionControlBBR, mipstack.CongestionControlBBR3:
@@ -171,8 +165,7 @@ func (o IPStackOption) validate() error {
 	}
 }
 
-// ipStack is the mihomo IP stack's packet and socket surface, adapted from
-// sing-wireguard only for gVisor.
+// ipStack is the mihomo IP stack's packet and socket surface.
 type ipStack interface {
 	Start() error
 	DialTCP(ctx context.Context, network string, source, destination netip.AddrPort) (net.Conn, error)
@@ -193,15 +186,9 @@ type ipStack interface {
 func newIPStack(option IPStackOption, localAddresses []netip.Prefix, mtu uint32) (ipStack, error) {
 	mode := option.Mode
 	if mode == ipStackAuto {
-		if features.WithGVisor {
-			mode = ipStackGVisor
-		} else {
-			mode = ipStackMips
-		}
+		mode = ipStackMips
 	}
 	switch mode {
-	case ipStackGVisor:
-		return wireguard.NewStackDevice(localAddresses, mtu)
 	case ipStackMips:
 		return mipstack.New(mipstack.Config{
 			LocalAddresses: localAddresses,
@@ -227,7 +214,6 @@ func newIPStack(option IPStackOption, localAddresses []netip.Prefix, mtu uint32)
 }
 
 var _ ipStack = (*mipstack.Stack)(nil)
-var _ ipStack = (wireguard.Device)(nil)
 
 type ipStackNetDialer struct {
 	stack ipStack

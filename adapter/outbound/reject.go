@@ -5,6 +5,7 @@ import (
 	"io"
 	"net"
 	"net/netip"
+	"sync"
 	"time"
 
 	"github.com/metacubex/mihomo/common/buf"
@@ -24,7 +25,7 @@ type RejectOption struct {
 // DialContext implements C.ProxyAdapter
 func (r *Reject) DialContext(ctx context.Context, metadata *C.Metadata) (C.Conn, error) {
 	if r.drop {
-		return NewConn(dropConn{}, r), nil
+		return NewConn(newDropConn(), r), nil
 	}
 	return NewConn(nopConn{}, r), nil
 }
@@ -133,18 +134,45 @@ func (npc nopPacketConn) SetDeadline(time.Time) error      { return nil }
 func (npc nopPacketConn) SetReadDeadline(time.Time) error  { return nil }
 func (npc nopPacketConn) SetWriteDeadline(time.Time) error { return nil }
 
-type dropConn struct{}
-
-func (rw dropConn) Read(b []byte) (int, error) { return 0, io.EOF }
-func (rw dropConn) ReadBuffer(buffer *buf.Buffer) error {
-	time.Sleep(C.DefaultDropTime)
-	return io.EOF
+type dropConn struct {
+	closeOnce sync.Once
+	closeCh   chan struct{}
 }
-func (rw dropConn) Write(b []byte) (int, error)          { return 0, io.EOF }
-func (rw dropConn) WriteBuffer(buffer *buf.Buffer) error { return io.EOF }
-func (rw dropConn) Close() error                         { return nil }
-func (rw dropConn) LocalAddr() net.Addr                  { return nil }
-func (rw dropConn) RemoteAddr() net.Addr                 { return nil }
-func (rw dropConn) SetDeadline(time.Time) error          { return nil }
-func (rw dropConn) SetReadDeadline(time.Time) error      { return nil }
-func (rw dropConn) SetWriteDeadline(time.Time) error     { return nil }
+
+func newDropConn() *dropConn {
+	return &dropConn{
+		closeCh: make(chan struct{}),
+	}
+}
+
+func (rw *dropConn) Read(b []byte) (int, error) {
+	select {
+	case <-rw.closeCh:
+		return 0, io.EOF
+	case <-time.After(C.DefaultDropTime):
+		return 0, io.EOF
+	}
+}
+
+func (rw *dropConn) ReadBuffer(buffer *buf.Buffer) error {
+	select {
+	case <-rw.closeCh:
+		return io.EOF
+	case <-time.After(C.DefaultDropTime):
+		return io.EOF
+	}
+}
+
+func (rw *dropConn) Write(b []byte) (int, error)          { return 0, io.EOF }
+func (rw *dropConn) WriteBuffer(buffer *buf.Buffer) error { return io.EOF }
+func (rw *dropConn) Close() error {
+	rw.closeOnce.Do(func() {
+		close(rw.closeCh)
+	})
+	return nil
+}
+func (rw *dropConn) LocalAddr() net.Addr              { return nil }
+func (rw *dropConn) RemoteAddr() net.Addr             { return nil }
+func (rw *dropConn) SetDeadline(time.Time) error      { return nil }
+func (rw *dropConn) SetReadDeadline(time.Time) error  { return nil }
+func (rw *dropConn) SetWriteDeadline(time.Time) error { return nil }

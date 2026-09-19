@@ -71,19 +71,17 @@ REST PUT /configs / SIGHUP ─────────────────�
 
 ```bash
 go build                                        # 普通构建
-go build -tags with_gvisor                      # 包含 gVisor TUN 栈（Makefile/CI 默认）
 make linux-amd64-v3                             # 交叉编译目标：darwin-arm64、windows-amd64 等
 make all                                        # 常用发布二进制，输出到 bin/
 make lint                                       # golangci-lint run ./...
 make vet                                        # go vet ./...
 go test ./... -v -count=1                       # 单元测试（根 module）
-go test ./... -v -count=1 -tags "with_gvisor"   # gvisor 变体
 cd test && make test                            # 集成测试（需要 Docker daemon）
 ```
 
 版本注入通过 ldflags：`-X 'github.com/metacubex/mihomo/constant.Version=…' -X '…constant.BuildTime=…'`。
 
-Build tags：`with_gvisor`（gVisor IP 栈，同时控制 tailscale），`with_low_memory`（更小的缓冲区），`no_easytier`/`no_tailscale`/`no_zerotier`/`no_fake_tcp`（编译期裁掉对应特性），`cmfa`（Android 构建）。特性状态由 `mihomo -v` 报告（`constant/features/`）。
+Build tags：`with_low_memory`（更小的缓冲区），`no_easytier`/`no_tailscale`/`no_zerotier`/`no_fake_tcp`（编译期裁掉对应特性），`cmfa`（Android 构建）。特性状态由 `mihomo -v` 报告（`constant/features/`）。
 
 本地运行：`go run . -d <配置目录> -f <配置文件>`；`-t` 测试配置后退出。默认路径见 `constant/path.go`。标准构建为 `CGO_ENABLED=0`（Android CI 是唯一用 cgo 的例外）。
 
@@ -155,5 +153,5 @@ npx tsx .agents/skills/write-notes-like-deepseek/scripts/archive-agent-note.ts <
 - **单元测试**：根 module，标准 `testing` + `testify`（`assert`/`require`），`t.Run` 表驱动；测试与被测同包；fixture 与测试同目录。`go test ./... -v -count=1`。
 - **集成测试**：`test/` module，`package main`，Docker SDK 驱动——没有 Docker daemon 时 `init()` 直接 panic。运行真实协议服务端容器 + 共享 `testSuit`（TCP/UDP pingpong + 大流量传输）。`cd test && make test`（串行，`-p 1`）。**CI 不跑这套**——手动套件。
 - 根 module 测试的环境变量开关：`SKIP_INTEROP_TEST=1`（跳过 listener/inbound 互操作测试）、`SKIP_CONCURRENT_TEST=1`。
-- CI（`.github/workflows/test.yml`）：6 系统 × Go 1.24–1.26，`CGO_ENABLED=0`，带/不带 `with_gvisor` 各跑一遍；macOS 上删除 `listener/inbound/*_test.go`。无覆盖率工具和阈值。
+- CI（`.github/workflows/test.yml`）：6 系统 × Go 1.24–1.26，`CGO_ENABLED=0`；macOS 上删除 `listener/inbound/*_test.go`。无覆盖率工具和阈值。
 - Lint：`golangci-lint run ./...`；`test/` module 在 `GOOS=darwin` 和 `GOOS=linux` 下各 lint 一遍。

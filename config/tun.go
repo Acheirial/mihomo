@@ -75,8 +75,6 @@ func parseTun(rawTun RawTun, dns *DNS, general *General) error {
 
 		RecvMsgX: rawTun.RecvMsgX,
 		SendMsgX: rawTun.SendMsgX,
-
-		ProcessorsPerChannel: rawTun.ProcessorsPerChannel,
 	}
 
 	return nil

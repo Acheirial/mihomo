@@ -419,7 +419,6 @@ func New(options LC.Tun, tunnel C.Tunnel, additions ...inbound.Addition) (l *Lis
 		EXP_RecvMsgX:                          options.RecvMsgX,
 		EXP_SendMsgX:                          options.SendMsgX,
 		EXP_MultiPendingPackets:               options.RecvMsgX,
-		EXP_ProcessorsPerChannel:              options.ProcessorsPerChannel,
 	}
 
 	if options.AutoRedirect {

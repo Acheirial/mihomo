@@ -12,6 +12,9 @@ func GetBuffer() *bytes.Buffer {
 }
 
 func PutBuffer(buf *bytes.Buffer) {
+	if buf.Cap() > 64*1024 {
+		return
+	}
 	buf.Reset()
 	bufferPool.Put(buf)
 }

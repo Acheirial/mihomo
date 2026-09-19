@@ -9,8 +9,8 @@ import (
 	"golang.org/x/exp/slices"
 )
 
-var singMuxProtocolList = []string{"h2mux", "smux", "yamux"}
-var singMuxProtocolListLong = []string{"yamux"} // don't test "smux", "h2mux" because it has some confused bugs
+var singMuxProtocolList = []string{"h2mux", "yamux"}
+var singMuxProtocolListLong = []string{"yamux"} // don't test "smux" (no half-close) or h2mux concurrent (confused bugs)
 
 // notCloseProxyAdapter is a proxy adapter that does not close the underlying outbound.ProxyAdapter.
 // The outbound.SingMux will close the underlying outbound.ProxyAdapter when it is closed, but we don't want to close it.

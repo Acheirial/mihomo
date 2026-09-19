@@ -43,7 +43,6 @@
             ];
             
             tags = [
-              "with_gvisor"
             ];
 
             # Network required 

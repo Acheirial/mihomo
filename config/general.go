@@ -75,16 +75,15 @@ func DefaultRawConfig() *RawConfig {
 			Interval:      30,
 		},
 		Tun: RawTun{
-			Enable:               false,
-			Device:               "",
-			Stack:                C.TunGvisor,
-			DNSHijack:            []string{"0.0.0.0:53"}, // default hijack all dns query
-			AutoRoute:            true,
-			AutoDetectInterface:  true,
-			Inet6Address:         []netip.Prefix{netip.MustParsePrefix("fdfe:dcba:9876::1/126")},
-			RecvMsgX:             true,
-			SendMsgX:             false, // In the current implementation, if enabled, the kernel may freeze during multi-thread downloads, so it is disabled by default.
-			ProcessorsPerChannel: 1,     // For most users, memory usage is more important than peak performance. Setting this to 1 can significantly reduce memory consumption.
+			Enable:              false,
+			Device:              "",
+			Stack:               C.TunSystem,
+			DNSHijack:           []string{"0.0.0.0:53"}, // default hijack all dns query
+			AutoRoute:           true,
+			AutoDetectInterface: true,
+			Inet6Address:        []netip.Prefix{netip.MustParsePrefix("fdfe:dcba:9876::1/126")},
+			RecvMsgX:            true,
+			SendMsgX:            false, // In the current implementation, if enabled, the kernel may freeze during multi-thread downloads, so it is disabled by default.
 		},
 		TuicServer: RawTuicServer{
 			Enable:                false,
