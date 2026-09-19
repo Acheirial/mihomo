@@ -84,6 +84,8 @@ func NewTrojan(options *TrojanOption) (*Trojan, error) {
 			AllowInsecure:   options.AllowInsecure,
 			ShadowTLS:       options.ShadowTLS.Build(),
 			ResTLS:          options.ResTLS.Build(),
+			JLSConfig:       options.JLSConfig.Build(),
+			RealityConfig:   options.RealityConfig.Build(),
 			MuxOption:       options.MuxOption.Build(),
 			// mkcp/mekya 不支持与 shadow-tls/res-tls/jls 同时使用
 			MekyaConfig: options.MekyaConfig.Build(),

@@ -52,5 +52,5 @@ YAML：`stack: go` / `Go` 映射为 `C.TunGo`（iota 4，`String()` 为 `"Go"`�
 ## Consequences
 
 - **收益**：Linux 上显式 `stack: go` 的 DIRECT TCP/UDP 可走 `GoConn.Splice` / `UDPNatConn.Splice`；UDP DNS dest 经 `JudgeFlow`+`NewDNSPacket` 劫持；gvisor/system/mixed/mips 与 `inet4-address` / `endpoint-independent-nat` 老配置仍解析。
-- **代价与已知上限**：默认栈仍是 gvisor，不改配置吃不到 go 栈满速——改默认属于下一个大版本。replace 绑 Acheirial `go-stack` 伪版本，不绑 metacubex 上游 tag；fork 变了要另 bump 伪版本。go 栈 ICMP echo 本地回，不走 `PrepareConnection` 直连 ping，gvisor/system 的 ping 路径与 go 栈不一致。`JudgeFlow` 不劫持 TCP DNS（仍走 `NewConnection`）。
+- **代价与已知上限**：默认栈仍是 gvisor，不改配置吃不到 go 栈满速——改默认属于下一个大版本。replace 绑 Acheirial `go-stack` 伪版本，不绑 metacubex 上游 tag；fork 变了要另 bump 伪版本。go 栈 ICMP echo 本地回，不走 `PrepareConnection` 直连 ping，gvisor/system 的 ping 路径与 go 栈不一致。`JudgeFlow` 不劫持 TCP DNS（仍走 `NewConnection`）。Windows `receiveFrom` 原先误用未 import 的 `M.SocksaddrFromNetIP`，`GOOS=windows` 编不过；已改为本地 `addrPortFromRawSockaddr`，replace 伪版本 bump 到 `v0.0.0-20260919005719-e67875be6b79`。
 - **重访**：默认栈改 `go` 须单独发布说明。metacubex 上游若合并 go 栈则删 replace、改 require。要切 sagernet 全家桶或升 sing v0.9 则另开窗口，不在本篇加码。
