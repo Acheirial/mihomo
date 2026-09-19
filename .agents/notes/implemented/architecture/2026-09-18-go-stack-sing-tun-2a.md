@@ -16,7 +16,7 @@ Linux TUN 直连满速弱于 sing-box。根因不在 Clash YAML：`github.com/me
 
 `NewStack("go")` 走 `NewGo`；空字符串仍按 `IncludeAllNetworks` / `WithGVisor` / GSO 在 gvisor、mixed、system 之间启发式，**never** 默认 `NewGo`。`mips` / `gvisor` / `system` / `mixed` 保留。`NewGo` 要求 `options.Handler` 实现 `HandlerEx`，否则报 `go stack requires HandlerEx`。
 
-mihomo `go.mod`：`require github.com/metacubex/sing-tun v0.4.24` 不动；`replace github.com/metacubex/sing-tun => github.com/Acheirial/sing-tun v0.0.0-20260918161732-7d3353e85ab6`（branch `go-stack`，commit `7d3353e`）。CI 走可复现伪版本，不依赖本机路径。
+mihomo `go.mod`：`require github.com/metacubex/sing-tun v0.4.24` 不动；`replace github.com/metacubex/sing-tun => github.com/Acheirial/sing-tun v0.0.0-20260919145333-e71268e4e6ac`（branch `go-stack`，commit `e71268e`，含 Android AutoRedirect loopback 双监听与 metacubex/meta 的 gVisor watcher / system NAT / mipstack batch）。CI 走可复现伪版本，不依赖本机路径。
 
 YAML：`stack: go` / `Go` 映射为 `C.TunGo`（iota 4，`String()` 为 `"Go"`，`StackTypeMapping` 收小写）。默认仍 `TunGvisor`（`config/general.go` 与 `listener/parse.go`）。`inet4-address` 未删。`endpoint-independent-nat: true` → `UDPMapping = NATMappingEndpointIndependent`，否则 `NATMappingAddressAndPortDependent`。未加 `udp-mapping` 新键。
 

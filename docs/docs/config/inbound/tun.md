@@ -104,7 +104,7 @@ tun 模式堆栈，如无使用问题，建议使用 `system` 栈，默认 `syst
 
 *在 Android 中*：
 
-转发本地 IPv4 与 IPv6 连接（需配置 `inet6-address`）。要通过热点或中继共享您的 VPN 连接，请使用 [VPNHotspot](https://github.com/Mygod/VPNHotspot)。
+转发本地 IPv4 与 IPv6 连接（IPv6 需配置 `inet6-address` 且设备有 `ip6tables`）。重定向服务监听 `127.0.0.1` / `::1`。要通过热点或中继共享您的 VPN 连接，请使用 [VPNHotspot](https://github.com/Mygod/VPNHotspot)。
 
 *在 Linux 中*：
 
